@@ -101,7 +101,7 @@ export function Inspect() {
       setRequests((prev) =>
         prev.map((r) =>
           r.reqId === event.req_id
-            ? { ...r, status: event.status, durationMs: event.duration_ms, respHeaders: event.resp_headers || {} }
+            ? { ...r, status: event.status, durationMs: event.duration_ms, respHeaders: event.resp_headers || {}, usage: event.usage ?? null }
             : r,
         ),
       )
@@ -357,6 +357,17 @@ function RequestCardView({
                 {card.status}
               </span>
               <span className="text-dim ml-2">{card.durationMs}ms</span>
+              {card.usage?.total_tokens != null && (
+                <span className="text-dim/60 ml-2">
+                  · {card.usage.total_tokens} tok
+                  {card.usage.cached_tokens != null && card.usage.cached_tokens > 0 && (
+                    <span className="text-mint"> ↻{card.usage.cached_tokens}</span>
+                  )}
+                  {card.usage.cache_creation_tokens != null && card.usage.cache_creation_tokens > 0 && (
+                    <span className="text-amber"> +{card.usage.cache_creation_tokens}</span>
+                  )}
+                </span>
+              )}
             </>
           )}
         </span>

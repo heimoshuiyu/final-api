@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::middleware::auth::TokenAuth;
 use crate::service;
 use crate::service::inspect::{header_map_to_json, InspectEvent, InspectStream};
+use crate::service::usage::UsageFormat;
 use crate::state::AppState;
 
 const MAX_BODY_SIZE: usize = 100 * 1024 * 1024;
@@ -212,7 +213,7 @@ pub async fn handler(
             }
 
             let duration_ms = start.elapsed().as_millis() as i32;
-            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &sticky_id, status_code).await;
+            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &sticky_id, status_code).await?;
 
             let mut response_builder = Response::builder().status(status);
             for key in resp.headers().keys() {
@@ -225,6 +226,8 @@ pub async fn handler(
 
             let resp_headers_json = header_map_to_json(resp.headers());
 
+            let usage_format = UsageFormat::from_endpoint_suffix(&upstream_url);
+
             let stream = resp.bytes_stream();
             let tapped = InspectStream::new(
                 stream,
@@ -233,7 +236,12 @@ pub async fn handler(
                 status_code,
                 start,
                 resp_headers_json,
+                usage_format,
+                is_stream,
+                state.pool.clone(),
+                log_id,
             );
+
             Ok(response_builder.body(Body::from_stream(tapped))?)
         }
         Err(e) => {
@@ -244,6 +252,7 @@ pub async fn handler(
                 status: 502,
                 duration_ms: duration_ms as u64,
                 resp_headers: serde_json::json!({}),
+                usage: None,
             });
             Err(AppError::BadGateway(format!("upstream error: {e}")))
         }
@@ -260,7 +269,7 @@ async fn log_request(
     duration_ms: i32,
     session_id: &str,
     error_status: u16,
-) -> Result<(), sqlx::Error> {
+) -> Result<i64, sqlx::Error> {
     let error_message = if error_status != 0 && error_status != 200 {
         Some(format!("HTTP {error_status}"))
     } else {

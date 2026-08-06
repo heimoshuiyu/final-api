@@ -58,6 +58,11 @@ export interface LogEntry {
   duration_ms: number
   session_id: string
   error_message: string | null
+  prompt_tokens: number | null
+  completion_tokens: number | null
+  total_tokens: number | null
+  cached_tokens: number | null
+  cache_creation_tokens: number | null
   created_at: string
 }
 
@@ -113,12 +118,21 @@ export interface InspectChunkEvent {
   data: string
 }
 
+export interface TokenUsage {
+  prompt_tokens?: number | null
+  completion_tokens?: number | null
+  total_tokens?: number | null
+  cached_tokens?: number | null
+  cache_creation_tokens?: number | null
+}
+
 export interface InspectEndEvent {
   type: "end"
   req_id: string
   status: number
   duration_ms: number
   resp_headers: Record<string, string>
+  usage?: TokenUsage | null
 }
 
 export type InspectEvent = InspectStartEvent | InspectChunkEvent | InspectEndEvent
@@ -140,4 +154,5 @@ export interface RequestCard {
   chunks: string[]
   status?: number
   durationMs?: number
+  usage?: TokenUsage | null
 }

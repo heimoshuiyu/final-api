@@ -95,6 +95,12 @@ export function Logs() {
                     流式
                   </th>
                   <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
+                    Token
+                  </th>
+                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
+                    缓存
+                  </th>
+                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
                     耗时
                   </th>
                   <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
@@ -126,6 +132,35 @@ export function Logs() {
                       {log.channel_id ? `#${String(log.channel_id).padStart(2, "0")}` : "—"}
                     </td>
                     <td className="py-2 px-3 text-dim">{log.is_stream ? "是" : "—"}</td>
+                    <td className="py-2 px-3 text-dim whitespace-nowrap">
+                      {log.total_tokens != null ? (
+                        <span>
+                          <span className="text-text">{log.total_tokens}</span>
+                          <span className="text-dim/50">
+                            {" "}
+                            ({log.prompt_tokens ?? 0}+{log.completion_tokens ?? 0})
+                          </span>
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-dim whitespace-nowrap">
+                      {log.cached_tokens != null || log.cache_creation_tokens != null ? (
+                        <span>
+                          {log.cached_tokens != null && (
+                            <span className="text-mint">↻{log.cached_tokens}</span>
+                          )}
+                          {log.cache_creation_tokens != null && (
+                            <span className="text-amber ml-1">
+                              {log.cached_tokens != null ? " " : ""}+{log.cache_creation_tokens}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="py-2 px-3 text-dim">{log.duration_ms}ms</td>
                     <td className="py-2 px-3 text-dim truncate max-w-[120px]">
                       {log.session_id || "—"}

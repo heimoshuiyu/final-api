@@ -9,6 +9,8 @@ use futures::Stream;
 use serde::Serialize;
 use tokio::sync::broadcast;
 
+use crate::service::usage::{UsageData, UsageExtractor, UsageFormat};
+
 fn headers_to_json(headers: &HeaderMap) -> serde_json::Value {
     let mut map = serde_json::Map::new();
     for (key, value) in headers.iter() {
@@ -58,6 +60,8 @@ pub enum InspectEvent {
         status: u16,
         duration_ms: u64,
         resp_headers: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        usage: Option<UsageData>,
     },
 }
 
@@ -78,6 +82,9 @@ pub struct InspectStream<S> {
     status: u16,
     start: Instant,
     resp_headers: serde_json::Value,
+    usage_extractor: UsageExtractor,
+    pool: Option<sqlx::PgPool>,
+    log_id: Option<i64>,
 }
 
 impl<S> InspectStream<S> {
@@ -88,6 +95,10 @@ impl<S> InspectStream<S> {
         status: u16,
         start: Instant,
         resp_headers: serde_json::Value,
+        usage_format: UsageFormat,
+        is_stream: bool,
+        pool: sqlx::PgPool,
+        log_id: i64,
     ) -> Self {
         Self {
             inner,
@@ -96,6 +107,9 @@ impl<S> InspectStream<S> {
             status,
             start,
             resp_headers,
+            usage_extractor: UsageExtractor::new(usage_format, is_stream),
+            pool: Some(pool),
+            log_id: Some(log_id),
         }
     }
 }
@@ -109,6 +123,7 @@ where
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match Pin::new(&mut self.inner).poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
+                self.usage_extractor.feed(&bytes);
                 let _ = self.tx.send(InspectEvent::Chunk {
                     req_id: self.req_id.clone(),
                     ts: Utc::now().timestamp_millis(),
@@ -118,11 +133,33 @@ where
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
             Poll::Ready(None) => {
+                let usage = self.usage_extractor.finalize();
+
+                if let (Some(pool), Some(log_id)) = (&self.pool, self.log_id) {
+                    if !usage.is_empty() {
+                        let pool = pool.clone();
+                        let u = usage.clone();
+                        tokio::spawn(async move {
+                            let _ = crate::db::log::update_usage(
+                                &pool,
+                                log_id,
+                                u.prompt_tokens,
+                                u.completion_tokens,
+                                u.total_tokens,
+                                u.cached_tokens,
+                                u.cache_creation_tokens,
+                            )
+                            .await;
+                        });
+                    }
+                }
+
                 let _ = self.tx.send(InspectEvent::End {
                     req_id: self.req_id.clone(),
                     status: self.status,
                     duration_ms: self.start.elapsed().as_millis() as u64,
                     resp_headers: self.resp_headers.clone(),
+                    usage: if usage.is_empty() { None } else { Some(usage) },
                 });
                 Poll::Ready(None)
             }
