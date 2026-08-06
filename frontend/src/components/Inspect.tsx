@@ -79,6 +79,8 @@ export function Inspect() {
           endpoint: event.endpoint,
           isStream: event.is_stream,
           body: event.body,
+          reqHeaders: event.req_headers || {},
+          upstreamHeaders: event.upstream_headers || {},
           chunks: [],
         }
         const next = [card, ...prev]
@@ -99,7 +101,7 @@ export function Inspect() {
       setRequests((prev) =>
         prev.map((r) =>
           r.reqId === event.req_id
-            ? { ...r, status: event.status, durationMs: event.duration_ms }
+            ? { ...r, status: event.status, durationMs: event.duration_ms, respHeaders: event.resp_headers || {} }
             : r,
         ),
       )
@@ -370,6 +372,13 @@ function RequestCardView({
       {/* Expanded body */}
       {expanded && (
         <div className="border-t border-line/60 px-4 py-3 space-y-3">
+          {/* Headers */}
+          <HeadersSection title="入站请求头" headers={card.reqHeaders} defaultOpen={false} />
+          <HeadersSection title="上游请求头" headers={card.upstreamHeaders} defaultOpen={false} />
+          {card.respHeaders && (
+            <HeadersSection title="上游响应头" headers={card.respHeaders} defaultOpen={false} />
+          )}
+
           {/* Request body */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
@@ -397,6 +406,49 @@ function RequestCardView({
             <span className="font-mono text-[10px] text-dim uppercase tracking-widest">上游</span>
             <span className="font-mono text-[10px] text-dim/80 truncate">{card.endpoint}</span>
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HeadersSection({
+  title,
+  headers,
+  defaultOpen,
+}: {
+  title: string
+  headers: Record<string, string>
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const entries = Object.entries(headers)
+  if (entries.length === 0) return null
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full text-left group"
+      >
+        <span className="font-mono text-[10px] text-dim uppercase tracking-widest group-hover:text-text transition-colors">
+          {title}
+        </span>
+        <span className="font-mono text-[10px] text-dim/60">{entries.length}</span>
+        <span className="font-mono text-[10px] text-dim/40 ml-auto">{open ? "▴" : "▾"}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 bg-base border border-line">
+          {entries.map(([key, value]) => (
+            <div key={key} className="flex border-b border-line/40 last:border-b-0">
+              <span className="font-mono text-[10px] text-dim px-2 py-1 flex-shrink-0 w-40 truncate border-r border-line/40">
+                {key}
+              </span>
+              <span className="font-mono text-[10px] text-text px-2 py-1 break-all min-w-0 flex-1">
+                {value}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

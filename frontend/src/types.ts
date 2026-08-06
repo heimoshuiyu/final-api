@@ -102,6 +102,8 @@ export interface InspectStartEvent {
   endpoint: string
   is_stream: boolean
   body: unknown
+  req_headers: Record<string, string>
+  upstream_headers: Record<string, string>
 }
 
 export interface InspectChunkEvent {
@@ -116,6 +118,7 @@ export interface InspectEndEvent {
   req_id: string
   status: number
   duration_ms: number
+  resp_headers: Record<string, string>
 }
 
 export type InspectEvent = InspectStartEvent | InspectChunkEvent | InspectEndEvent
@@ -131,6 +134,9 @@ export interface RequestCard {
   endpoint: string
   isStream: boolean
   body: unknown
+  reqHeaders: Record<string, string>
+  upstreamHeaders: Record<string, string>
+  respHeaders?: Record<string, string>
   chunks: string[]
   status?: number
   durationMs?: number

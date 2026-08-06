@@ -11,7 +11,7 @@ use crate::db;
 use crate::error::AppError;
 use crate::middleware::auth::TokenAuth;
 use crate::service;
-use crate::service::inspect::{InspectEvent, InspectStream};
+use crate::service::inspect::{header_map_to_json, InspectEvent, InspectStream};
 use crate::state::AppState;
 
 const MAX_BODY_SIZE: usize = 100 * 1024 * 1024;
@@ -190,6 +190,8 @@ pub async fn handler(
         endpoint: upstream_url.clone(),
         is_stream,
         body: body_json.clone().unwrap_or(Value::Null),
+        req_headers: header_map_to_json(&parts.headers),
+        upstream_headers: header_map_to_json(&upstream_headers),
     });
 
     let result = state
@@ -221,6 +223,8 @@ pub async fn handler(
                 }
             }
 
+            let resp_headers_json = header_map_to_json(resp.headers());
+
             let stream = resp.bytes_stream();
             let tapped = InspectStream::new(
                 stream,
@@ -228,6 +232,7 @@ pub async fn handler(
                 req_id,
                 status_code,
                 start,
+                resp_headers_json,
             );
             Ok(response_builder.body(Body::from_stream(tapped))?)
         }
@@ -238,6 +243,7 @@ pub async fn handler(
                 req_id,
                 status: 502,
                 duration_ms: duration_ms as u64,
+                resp_headers: serde_json::json!({}),
             });
             Err(AppError::BadGateway(format!("upstream error: {e}")))
         }
