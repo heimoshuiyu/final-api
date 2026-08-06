@@ -1,0 +1,40 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    userns_mode: "keep-id"
+    volumes:
+      - ..:/workspace:cached
+      - cargo-registry:/usr/local/cargo/registry
+    command: sleep infinity
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - finalapi
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: finalapi
+      POSTGRES_PASSWORD: finalapi
+      POSTGRES_DB: finalapi
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finalapi"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finalapi
+
+networks:
+  finalapi:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  cargo-registry:

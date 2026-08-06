@@ -1,0 +1,85 @@
+export type UserRole = 1 | 10
+
+export interface User {
+  id: number
+  username: string
+  role: UserRole
+  status: number
+  created_at?: string
+}
+
+export interface Token {
+  id: number
+  user_id: number
+  key: string
+  name: string
+  status: number
+  model_limits_enabled: boolean
+  model_limits: string
+  expired_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ModelOverride {
+  endpoint_url?: string
+  auth_type?: string
+}
+
+export interface Channel {
+  id: number
+  name: string
+  endpoint_url: string
+  auth_type: string
+  models: string[]
+  status: number
+  weight: number
+  model_mapping: Record<string, string>
+  model_overrides: Record<string, ModelOverride>
+  header_override: Record<string, string>
+  body_override: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface LogEntry {
+  id: number
+  token_id: number | null
+  user_id: number | null
+  channel_id: number | null
+  model: string
+  is_stream: boolean
+  status_code: number
+  duration_ms: number
+  session_id: string
+  error_message: string | null
+  created_at: string
+}
+
+export interface LogQuery {
+  user_id?: number
+  channel_id?: number
+  model?: string
+  page?: number
+  page_size?: number
+}
+
+export interface CreateTokenRequest {
+  name: string
+  model_limits_enabled?: boolean
+  model_limits?: string
+  expired_at?: string
+}
+
+export interface CreateChannelRequest {
+  name: string
+  endpoint_url: string
+  auth_type?: string
+  api_key: string
+  models: string[]
+  weight?: number
+  model_mapping?: Record<string, string>
+  model_overrides?: Record<string, ModelOverride>
+  header_override?: Record<string, string>
+  body_override?: Record<string, unknown>
+}

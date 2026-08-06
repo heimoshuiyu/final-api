@@ -1,0 +1,81 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct LogRow {
+    pub id: i64,
+    pub token_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub channel_id: Option<i64>,
+    pub model: String,
+    pub is_stream: bool,
+    pub status_code: i32,
+    pub duration_ms: i32,
+    pub session_id: String,
+    pub error_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug)]
+pub struct CreateLogParams<'a> {
+    pub token_id: Option<i64>,
+    pub user_id: Option<i64>,
+    pub channel_id: Option<i64>,
+    pub model: &'a str,
+    pub is_stream: bool,
+    pub status_code: i32,
+    pub duration_ms: i32,
+    pub session_id: &'a str,
+    pub error_message: Option<&'a str>,
+}
+
+pub async fn create(pool: &sqlx::PgPool, p: &CreateLogParams<'_>) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"INSERT INTO request_logs (token_id, user_id, channel_id, model, is_stream,
+           status_code, duration_ms, session_id, error_message)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#,
+    )
+    .bind(p.token_id)
+    .bind(p.user_id)
+    .bind(p.channel_id)
+    .bind(p.model)
+    .bind(p.is_stream)
+    .bind(p.status_code)
+    .bind(p.duration_ms)
+    .bind(p.session_id)
+    .bind(p.error_message)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LogQuery {
+    pub user_id: Option<i64>,
+    pub channel_id: Option<i64>,
+    pub model: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+pub async fn list(pool: &sqlx::PgPool, q: &LogQuery) -> Result<Vec<LogRow>, sqlx::Error> {
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).min(200);
+    let offset = (page - 1) * page_size;
+
+    sqlx::query_as::<_, LogRow>(
+        r#"SELECT * FROM request_logs
+           WHERE ($1::bigint IS NULL OR user_id = $1)
+           AND ($2::bigint IS NULL OR channel_id = $2)
+           AND ($3::text IS NULL OR model = $3)
+           ORDER BY id DESC LIMIT $4 OFFSET $5"#,
+    )
+    .bind(q.user_id)
+    .bind(q.channel_id)
+    .bind(q.model.as_deref())
+    .bind(page_size)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+}
