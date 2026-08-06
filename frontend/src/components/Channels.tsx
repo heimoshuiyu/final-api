@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { createChannel, deleteChannel, fetchChannels, updateChannel } from "../api"
-import type { Channel, CreateChannelRequest, FormatOverride, ModelOverrideEntry } from "../types"
-import type { ProviderPreset } from "../preset-types"
-import { modelId, modelOverride } from "../preset-types"
-import presetsData from "../provider-presets.json"
-
-const PRESETS = presetsData as ProviderPreset[]
+import { createChannel, deleteChannel, fetchChannels, fetchPresets, updateChannel } from "../api"
+import type { Channel, CreateChannelRequest, FormatOverride, ModelOverrideEntry, ProviderPreset } from "../types"
 
 interface FormatEntry {
   format: string
@@ -67,6 +62,7 @@ export function Channels() {
 
   const [presetSearch, setPresetSearch] = useState("")
   const [showPresetList, setShowPresetList] = useState(false)
+  const [presets, setPresets] = useState<ProviderPreset[]>([])
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -81,16 +77,20 @@ export function Channels() {
     load()
   }, [load])
 
+  useEffect(() => {
+    fetchPresets().then(setPresets).catch(() => {})
+  }, [])
+
   const filteredPresets = useMemo(() => {
     const q = presetSearch.toLowerCase().trim()
-    if (!q) return PRESETS
-    return PRESETS.filter(
+    if (!q) return presets
+    return presets.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.id.toLowerCase().includes(q) ||
-        p.models.some((m) => modelId(m).toLowerCase().includes(q)),
+        p.models.some((m) => m.id.toLowerCase().includes(q)),
     )
-  }, [presetSearch])
+  }, [presetSearch, presets])
 
   const resetForm = () => {
     setName("")
@@ -151,17 +151,15 @@ export function Channels() {
     setAuthType(preset.auth_type)
     setModelRows(
       preset.models.map((m) => {
-        const mid = modelId(m)
-        const ov = modelOverride(m)
         const formats: FormatEntry[] = []
-        if (ov?.endpoint_url || ov?.auth_type) {
+        if (m.override?.endpoint_url || m.override?.auth_type) {
           formats.push({
-            format: formatFromUrl(ov?.endpoint_url || preset.endpoint_url),
-            endpointUrl: ov?.endpoint_url || "",
-            authType: ov?.auth_type || "",
+            format: formatFromUrl(m.override?.endpoint_url || preset.endpoint_url),
+            endpointUrl: m.override?.endpoint_url || "",
+            authType: m.override?.auth_type || "",
           })
         }
-        return { name: mid, mappedTo: "", weight: 0, formats }
+        return { name: m.id, mappedTo: "", weight: 0, formats }
       }),
     )
     setShowPresetList(false)
@@ -321,7 +319,7 @@ export function Channels() {
             <div className="border-b border-line px-6 py-4">
               {!showPresetList ? (
                 <button onClick={() => setShowPresetList(true)} className="font-mono text-xs text-mint hover:underline">
-                  + 从预置导入（{PRESETS.length} 个服务商可选）
+                  + 从预置导入（{presets.length} 个服务商可选）
                 </button>
               ) : (
                 <div>

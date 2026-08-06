@@ -25,7 +25,8 @@ pub fn build_router(state: AppState) -> Router {
     // ---- Public management routes (no auth) ----
     let public_api = Router::<AppState>::new()
         .route("/api/user/login", post(handler::user::login))
-        .route("/api/user/register", post(handler::user::register));
+        .route("/api/user/register", post(handler::user::register))
+        .route("/api/presets", get(handler::preset::list));
 
     // ---- Protected management routes (JWT auth) ----
     let protected_api = Router::<AppState>::new()

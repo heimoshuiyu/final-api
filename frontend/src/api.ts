@@ -4,6 +4,7 @@ import type {
   CreateTokenRequest,
   LogEntry,
   LogQuery,
+  ProviderPreset,
   Token,
   User,
 } from "./types"
@@ -77,6 +78,10 @@ export function updateChannel(id: number, data: CreateChannelRequest) {
 
 export function deleteChannel(id: number) {
   return api(`/api/channel/${id}`, { method: "DELETE" })
+}
+
+export function fetchPresets() {
+  return api<ProviderPreset[]>("/api/presets")
 }
 
 export function fetchLogs(query?: LogQuery) {

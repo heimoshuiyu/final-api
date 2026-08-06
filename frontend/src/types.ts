@@ -94,6 +94,22 @@ export interface CreateChannelRequest {
   body_override?: Record<string, unknown>
 }
 
+export interface ProviderPresetModel {
+  id: string
+  override?: {
+    endpoint_url: string
+    auth_type: string
+  }
+}
+
+export interface ProviderPreset {
+  id: string
+  name: string
+  endpoint_url: string
+  auth_type: string
+  models: ProviderPresetModel[]
+}
+
 export interface InspectStartEvent {
   type: "start"
   req_id: string

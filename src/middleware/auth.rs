@@ -130,10 +130,10 @@ pub fn generate_api_key() -> String {
     use rand::Rng;
     const CHARSET: &[u8] =
         b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let key: String = (0..48)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
+            let idx = rng.random_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect();
@@ -141,11 +141,14 @@ pub fn generate_api_key() -> String {
 }
 
 pub fn hash_password(password: &str) -> Result<String, AppError> {
-    use argon2::password_hash::rand_core::OsRng;
     use argon2::password_hash::SaltString;
     use argon2::{Argon2, PasswordHasher};
+    use rand::RngCore;
 
-    let salt = SaltString::generate(&mut OsRng);
+    let mut salt_bytes = [0u8; 32];
+    rand::rng().fill_bytes(&mut salt_bytes);
+    let salt = SaltString::encode_b64(&salt_bytes)
+        .map_err(|e| AppError::Internal(format!("salt encode error: {e}")))?;
     let hash = Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| AppError::Internal(format!("hash error: {e}")))?;
