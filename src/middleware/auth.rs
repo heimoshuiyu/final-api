@@ -13,6 +13,7 @@ use crate::state::AppState;
 pub struct TokenAuth {
     pub token_id: i64,
     pub user_id: i64,
+    pub token_name: String,
     pub model_limits_enabled: bool,
     pub model_limits: Vec<String>,
 }
@@ -83,6 +84,7 @@ pub async fn token_auth(
     let auth = TokenAuth {
         token_id: token.id,
         user_id: token.user_id,
+        token_name: token.name,
         model_limits_enabled: token.model_limits_enabled,
         model_limits,
     };

@@ -8,6 +8,7 @@ mod service;
 mod state;
 
 use state::AppState;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = dotenvy::dotenv();
@@ -27,13 +28,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     init_default_admin(&pool).await?;
 
-    let http_client = reqwest::Client::builder()
-        .build()?;
+    let http_client = reqwest::Client::builder().build()?;
+
+    let inspect_tx = service::inspect::inspect_channel(1024);
 
     let state = AppState {
         pool,
         http_client,
         config: std::sync::Arc::new(config.clone()),
+        inspect_tx,
     };
 
     let app = router::build_router(state.clone());

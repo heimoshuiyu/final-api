@@ -8,6 +8,7 @@ import { Dashboard } from "./components/Dashboard"
 import { Tokens } from "./components/Tokens"
 import { Channels } from "./components/Channels"
 import { Logs } from "./components/Logs"
+import { Inspect } from "./components/Inspect"
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean>(!!localStorage.getItem("token"))
@@ -51,6 +52,8 @@ export default function App() {
                 return <Channels />
               case route.startsWith("/logs"):
                 return <Logs />
+              case route.startsWith("/inspect"):
+                return <Inspect />
               default:
                 return <Dashboard navigate={navigate} />
             }

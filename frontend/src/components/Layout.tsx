@@ -16,6 +16,7 @@ export function Layout({
     { path: "/tokens", label: "令牌" },
     { path: "/channels", label: "渠道" },
     { path: "/logs", label: "请求" },
+    { path: "/inspect", label: "实时" },
   ]
 
   return (

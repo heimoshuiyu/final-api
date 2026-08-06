@@ -11,6 +11,7 @@ use crate::db;
 use crate::error::AppError;
 use crate::middleware::auth::TokenAuth;
 use crate::service;
+use crate::service::inspect::{InspectEvent, InspectStream};
 use crate::state::AppState;
 
 const MAX_BODY_SIZE: usize = 100 * 1024 * 1024;
@@ -176,6 +177,21 @@ pub async fn handler(
         &model,
     );
 
+    let req_id = uuid::Uuid::new_v4().to_string();
+    let _ = state.inspect_tx.send(InspectEvent::Start {
+        req_id: req_id.clone(),
+        ts: chrono::Utc::now().timestamp_millis(),
+        user_id: auth.user_id,
+        token_id: auth.token_id,
+        token_name: auth.token_name.clone(),
+        channel_id: channel.id,
+        channel_name: channel.name.clone(),
+        model: model.clone(),
+        endpoint: upstream_url.clone(),
+        is_stream,
+        body: body_json.clone().unwrap_or(Value::Null),
+    });
+
     let result = state
         .http_client
         .request(method, &upstream_url)
@@ -206,11 +222,23 @@ pub async fn handler(
             }
 
             let stream = resp.bytes_stream();
-            Ok(response_builder.body(Body::from_stream(stream))?)
+            let tapped = InspectStream::new(
+                stream,
+                state.inspect_tx.clone(),
+                req_id,
+                status_code,
+                start,
+            );
+            Ok(response_builder.body(Body::from_stream(tapped))?)
         }
         Err(e) => {
             let duration_ms = start.elapsed().as_millis() as i32;
             let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &sticky_id, 0).await;
+            let _ = state.inspect_tx.send(InspectEvent::End {
+                req_id,
+                status: 502,
+                duration_ms: duration_ms as u64,
+            });
             Err(AppError::BadGateway(format!("upstream error: {e}")))
         }
     }

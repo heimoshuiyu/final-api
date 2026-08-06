@@ -88,3 +88,50 @@ export interface CreateChannelRequest {
   header_override?: Record<string, string>
   body_override?: Record<string, unknown>
 }
+
+export interface InspectStartEvent {
+  type: "start"
+  req_id: string
+  ts: number
+  user_id: number
+  token_id: number
+  token_name: string
+  channel_id: number
+  channel_name: string
+  model: string
+  endpoint: string
+  is_stream: boolean
+  body: unknown
+}
+
+export interface InspectChunkEvent {
+  type: "chunk"
+  req_id: string
+  ts: number
+  data: string
+}
+
+export interface InspectEndEvent {
+  type: "end"
+  req_id: string
+  status: number
+  duration_ms: number
+}
+
+export type InspectEvent = InspectStartEvent | InspectChunkEvent | InspectEndEvent
+
+export interface RequestCard {
+  reqId: string
+  ts: number
+  tokenId: number
+  tokenName: string
+  channelId: number
+  channelName: string
+  model: string
+  endpoint: string
+  isStream: boolean
+  body: unknown
+  chunks: string[]
+  status?: number
+  durationMs?: number
+}

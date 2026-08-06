@@ -48,6 +48,7 @@ pub fn build_router(state: AppState) -> Router {
             put(handler::channel::update).delete(handler::channel::delete),
         )
         .route("/api/log", get(handler::log::list))
+        .route("/api/inspect/stream", get(handler::inspect::stream))
         .layer(from_fn_with_state(state.clone(), jwt_auth));
 
     Router::<AppState>::new()
