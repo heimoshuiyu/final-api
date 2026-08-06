@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createChannel, deleteChannel, fetchChannels, updateChannel } from "../api"
-import type { Channel, CreateChannelRequest, FormatOverride } from "../types"
+import type { Channel, CreateChannelRequest, FormatOverride, ModelOverrideEntry } from "../types"
 import type { ProviderPreset } from "../preset-types"
 import { modelId, modelOverride } from "../preset-types"
 import presetsData from "../provider-presets.json"
@@ -16,6 +16,7 @@ interface FormatEntry {
 interface ModelRow {
   name: string
   mappedTo: string
+  weight: number
   formats: FormatEntry[]
 }
 
@@ -43,6 +44,12 @@ function formatFromUrl(url: string): string {
   if (url.endsWith("/moderations")) return "moderations"
   return "chat/completions"
 }
+
+const inputCls =
+  "w-full px-3 py-2 bg-base border border-line text-text text-sm focus:border-mint focus:outline-none transition-colors"
+
+const subInputCls =
+  "w-full px-2.5 py-1.5 bg-base border border-line text-text text-xs font-mono focus:border-mint focus:outline-none transition-colors"
 
 export function Channels() {
   const [channels, setChannels] = useState<Channel[]>([])
@@ -116,10 +123,18 @@ export function Channels() {
     setModelRows(
       ch.models.map((m) => {
         const modelFmts = overrides[m] || {}
+        const modelWeight = modelFmts.weight as number | undefined
+        const fmtEntries: Record<string, FormatOverride> = {}
+        for (const [k, v] of Object.entries(modelFmts)) {
+          if (k !== "weight" && typeof v === "object" && v !== null) {
+            fmtEntries[k] = v as FormatOverride
+          }
+        }
         return {
           name: m,
           mappedTo: mapping[m] || "",
-          formats: Object.entries(modelFmts).map(([fmt, ov]) => ({
+          weight: modelWeight ?? 0,
+          formats: Object.entries(fmtEntries).map(([fmt, ov]) => ({
             format: fmt,
             endpointUrl: ov.endpoint_url || "",
             authType: ov.auth_type || "",
@@ -146,7 +161,7 @@ export function Channels() {
             authType: ov?.auth_type || "",
           })
         }
-        return { name: mid, mappedTo: "", formats }
+        return { name: mid, mappedTo: "", weight: 0, formats }
       }),
     )
     setShowPresetList(false)
@@ -154,7 +169,7 @@ export function Channels() {
   }
 
   const addModelRow = () => {
-    setModelRows((prev) => [...prev, { name: "", mappedTo: "", formats: [] }])
+    setModelRows((prev) => [...prev, { name: "", mappedTo: "", weight: 0, formats: [] }])
   }
 
   const updateModelRow = (index: number, patch: Partial<ModelRow>) => {
@@ -222,20 +237,21 @@ export function Channels() {
     try {
       const models = validRows.map((r) => r.name.trim())
       const model_mapping: Record<string, string> = {}
-      const model_overrides: Record<string, Record<string, FormatOverride>> = {}
+      const model_overrides: Record<string, ModelOverrideEntry> = {}
       for (const row of validRows) {
         const m = row.name.trim()
         if (row.mappedTo.trim()) model_mapping[m] = row.mappedTo.trim()
-        const fmtMap: Record<string, FormatOverride> = {}
+        const entry: ModelOverrideEntry = {}
+        if (row.weight > 0) entry.weight = row.weight
         for (const fe of row.formats) {
           if (fe.endpointUrl.trim() || fe.authType) {
             const ov: FormatOverride = {}
             if (fe.endpointUrl.trim()) ov.endpoint_url = fe.endpointUrl.trim()
             if (fe.authType) ov.auth_type = fe.authType
-            fmtMap[fe.format] = ov
+            entry[fe.format] = ov
           }
         }
-        if (Object.keys(fmtMap).length > 0) model_overrides[m] = fmtMap
+        if (Object.keys(entry).length > 0) model_overrides[m] = entry
       }
 
       const payload: CreateChannelRequest = {
@@ -273,8 +289,6 @@ export function Channels() {
     }
   }
 
-  const overrideCount = (ch: Channel) => Object.keys(ch.model_overrides || {}).length
-
   return (
     <div style={{ animation: "slide-up 0.3s ease-out" }}>
       <div className="flex items-center justify-between">
@@ -301,10 +315,10 @@ export function Channels() {
       )}
 
       {showForm && (
-        <div className="mt-8 border border-line p-6 space-y-6 bg-panel">
+        <div className="mt-8 border border-bright-line bg-panel">
           {/* Preset import */}
           {!editingId && (
-            <div>
+            <div className="border-b border-line px-6 py-4">
               {!showPresetList ? (
                 <button onClick={() => setShowPresetList(true)} className="font-mono text-xs text-mint hover:underline">
                   + 从预置导入（{PRESETS.length} 个服务商可选）
@@ -346,148 +360,87 @@ export function Channels() {
           )}
 
           {/* Channel settings */}
-          <Field label="渠道名称">
-            <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="my-channel" />
-          </Field>
-
-          <Field label="端点 URL（完整地址）">
-            <input
-              value={endpointUrl}
-              onChange={(e) => setEndpointUrl(e.target.value)}
-              className={`${inputCls} font-mono text-xs`}
-              placeholder="https://api.openai.com/v1/chat/completions"
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="认证方式">
-              <select value={authType} onChange={(e) => setAuthType(e.target.value)} className={inputCls}>
-                <option value="bearer">Bearer</option>
-                <option value="x-api-key">x-api-key</option>
-              </select>
-            </Field>
-            <Field label="权重">
-              <input type="number" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className={`${inputCls} font-mono`} />
-            </Field>
-          </div>
-
-          <Field label="API 密钥">
-            <input
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className={`${inputCls} font-mono`}
-              placeholder={editingId ? "留空则保持不变" : "sk-…"}
-              type="password"
-            />
-          </Field>
-
-          {/* Models */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] text-dim uppercase tracking-widest">模型（{modelRows.length}）</span>
-              <span className="font-mono text-[10px] text-dim">无覆盖则继承渠道设置</span>
+          <div className="px-6 py-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="渠道名称">
+                <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="my-channel" />
+              </Field>
+              <Field label="权重">
+                <input
+                  type="number"
+                  value={weight}
+                  onChange={(e) => setWeight(Number(e.target.value))}
+                  className={`${inputCls} font-mono`}
+                />
+              </Field>
             </div>
 
-            {modelRows.length > 0 && (
-              <div className="border border-line">
-                {modelRows.map((row, i) => (
-                  <div key={i} className={i > 0 ? "border-t border-line/50" : ""}>
-                    {/* Model row */}
-                    <div className="flex items-center gap-2 px-2 py-1.5">
-                      <input
-                        value={row.name}
-                        onChange={(e) => updateModelRow(i, { name: e.target.value })}
-                        placeholder="模型名"
-                        className="flex-1 min-w-0 bg-transparent px-1 py-0.5 text-text font-mono text-xs focus:outline-none"
-                      />
-                      <input
-                        value={row.mappedTo}
-                        onChange={(e) => updateModelRow(i, { mappedTo: e.target.value })}
-                        placeholder="映射→"
-                        className="w-28 bg-transparent px-1 py-0.5 text-dim font-mono text-xs focus:outline-none"
-                      />
-                      <div className="flex gap-1 flex-wrap items-center min-w-[60px]">
-                        {row.formats.map((f, fi) => (
-                          <span
-                            key={fi}
-                            className="font-mono text-[9px] px-1.5 py-0.5 border border-amber/40 text-amber whitespace-nowrap cursor-pointer"
-                            onClick={() => toggleExpand(i)}
-                          >
-                            {formatLabel(f.format)}
-                          </span>
-                        ))}
-                      </div>
-                      <button
-                        onClick={() => toggleExpand(i)}
-                        className="font-mono text-xs text-dim hover:text-text transition-colors px-1"
-                      >
-                        {expandedModels.has(i) ? "▴" : "▾"}
-                      </button>
-                      <button
-                        onClick={() => removeModelRow(i)}
-                        className="text-dim hover:text-rose transition-colors font-mono text-xs px-1"
-                      >
-                        ✕
-                      </button>
-                    </div>
+            <Field label="端点 URL">
+              <input
+                value={endpointUrl}
+                onChange={(e) => setEndpointUrl(e.target.value)}
+                className={`${inputCls} font-mono text-xs`}
+                placeholder="https://api.openai.com/v1/chat/completions"
+              />
+            </Field>
 
-                    {/* Format overrides (expanded) */}
-                    {expandedModels.has(i) && (
-                      <div className="pl-6 pr-2 pb-3 space-y-1.5">
-                        {row.formats.map((f, fi) => (
-                          <div key={fi} className="flex items-center gap-1.5">
-                            <select
-                              value={f.format}
-                              onChange={(e) => updateFormatEntry(i, fi, { format: e.target.value })}
-                              className="w-28 bg-transparent border border-line px-1.5 py-1 text-xs font-mono text-text focus:outline-none focus:border-mint"
-                            >
-                              {FORMAT_OPTIONS.map((fo) => (
-                                <option key={fo.value} value={fo.value}>{fo.label}</option>
-                              ))}
-                            </select>
-                            <input
-                              value={f.endpointUrl}
-                              onChange={(e) => updateFormatEntry(i, fi, { endpointUrl: e.target.value })}
-                              placeholder="端点 URL 覆盖"
-                              className="flex-1 min-w-0 bg-transparent border border-line px-2 py-1 text-dim font-mono text-xs focus:outline-none focus:border-mint"
-                            />
-                            <select
-                              value={f.authType}
-                              onChange={(e) => updateFormatEntry(i, fi, { authType: e.target.value })}
-                              className="w-28 bg-transparent border border-line px-1.5 py-1 text-xs font-mono text-text focus:outline-none focus:border-mint"
-                            >
-                              <option value="">认证 —</option>
-                              <option value="bearer">Bearer</option>
-                              <option value="x-api-key">x-api-key</option>
-                            </select>
-                            <button
-                              onClick={() => removeFormatEntry(i, fi)}
-                              className="text-dim hover:text-rose transition-colors font-mono text-xs px-1"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => addFormatEntry(i)}
-                          className="font-mono text-[10px] text-mint hover:underline"
-                        >
-                          + 添加格式覆盖
-                        </button>
-                      </div>
-                    )}
-                  </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="认证方式">
+                <select value={authType} onChange={(e) => setAuthType(e.target.value)} className={inputCls}>
+                  <option value="bearer">Bearer</option>
+                  <option value="x-api-key">x-api-key</option>
+                </select>
+              </Field>
+              <Field label="API 密钥">
+                <input
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className={`${inputCls} font-mono`}
+                  placeholder={editingId ? "留空则保持不变" : "sk-…"}
+                  type="password"
+                />
+              </Field>
+            </div>
+          </div>
+
+          {/* Models */}
+          <div className="border-t border-line px-6 py-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-mono text-[10px] text-dim uppercase tracking-widest">模型（{modelRows.length}）</span>
+              <span className="font-mono text-[10px] text-dim">展开编辑映射与覆盖</span>
+            </div>
+
+            {modelRows.length > 0 ? (
+              <div className="space-y-px">
+                {modelRows.map((row, i) => (
+                  <ModelCard
+                    key={i}
+                    row={row}
+                    expanded={expandedModels.has(i)}
+                    onToggle={() => toggleExpand(i)}
+                    onRemove={() => removeModelRow(i)}
+                    onUpdateName={(v) => updateModelRow(i, { name: v })}
+                    onUpdateMappedTo={(v) => updateModelRow(i, { mappedTo: v })}
+                    onUpdateWeight={(v) => updateModelRow(i, { weight: v })}
+                    onAddFormat={() => addFormatEntry(i)}
+                    onUpdateFormat={(fi, patch) => updateFormatEntry(i, fi, patch)}
+                    onRemoveFormat={(fi) => removeFormatEntry(i, fi)}
+                  />
                 ))}
+              </div>
+            ) : (
+              <div className="border border-line px-4 py-8 text-center">
+                <p className="font-mono text-xs text-dim">还没有模型，点击下方按钮添加。</p>
               </div>
             )}
 
-            <button onClick={addModelRow} className="mt-2 font-mono text-xs text-mint hover:underline">
+            <button onClick={addModelRow} className="mt-3 font-mono text-xs text-mint hover:underline">
               + 添加模型
             </button>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2">
+          <div className="border-t border-line px-6 py-4 flex gap-3">
             <button
               onClick={submit}
               disabled={saving}
@@ -515,6 +468,148 @@ export function Channels() {
           {channels.map((channel) => (
             <ChannelCard key={channel.id} channel={channel} onDelete={remove} onEdit={openEdit} />
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ModelCard({
+  row,
+  expanded,
+  onToggle,
+  onRemove,
+  onUpdateName,
+  onUpdateMappedTo,
+  onUpdateWeight,
+  onAddFormat,
+  onUpdateFormat,
+  onRemoveFormat,
+}: {
+  row: ModelRow
+  expanded: boolean
+  onToggle: () => void
+  onRemove: () => void
+  onUpdateName: (v: string) => void
+  onUpdateMappedTo: (v: string) => void
+  onUpdateWeight: (v: number) => void
+  onAddFormat: () => void
+  onUpdateFormat: (fi: number, patch: Partial<FormatEntry>) => void
+  onRemoveFormat: (fi: number) => void
+}) {
+  const overrideSummary = [
+    ...(row.weight > 0 ? [`权重 ${row.weight}`] : []),
+    ...(row.mappedTo.trim() ? [`→ ${row.mappedTo}`] : []),
+    ...row.formats.map((f) => formatLabel(f.format)),
+  ]
+
+  return (
+    <div className="border border-line bg-base">
+      {/* Header row — always uniform */}
+      <div className="flex items-center px-3 py-2 gap-2">
+        <input
+          value={row.name}
+          onChange={(e) => onUpdateName(e.target.value)}
+          placeholder="模型名"
+          className="flex-1 min-w-0 bg-transparent px-1 py-0.5 text-text font-mono text-xs focus:outline-none"
+        />
+        {/* Override summary badges */}
+        <div className="flex gap-1 items-center min-w-0 flex-shrink-0">
+          {overrideSummary.length > 0 && (
+            <span className="font-mono text-[9px] text-amber px-1.5 py-0.5 border border-amber/30 whitespace-nowrap">
+              {overrideSummary.length} 项覆盖
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onToggle}
+          className="font-mono text-xs text-dim hover:text-text transition-colors px-1.5 flex-shrink-0"
+          title={expanded ? "收起" : "展开"}
+        >
+          {expanded ? "▴" : "▾"}
+        </button>
+        <button
+          onClick={onRemove}
+          className="text-dim hover:text-rose transition-colors font-mono text-xs px-1.5 flex-shrink-0"
+          title="删除模型"
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Expanded body */}
+      {expanded && (
+        <div className="border-t border-line/60 px-3 py-3 space-y-3 bg-panel/30">
+          {/* Mapping + weight row */}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="block font-mono text-[9px] text-dim uppercase tracking-wider mb-1">映射到</span>
+              <input
+                value={row.mappedTo}
+                onChange={(e) => onUpdateMappedTo(e.target.value)}
+                placeholder="继承原名"
+                className={subInputCls}
+              />
+            </label>
+            <label className="block">
+              <span className="block font-mono text-[9px] text-dim uppercase tracking-wider mb-1">权重覆盖</span>
+              <input
+                type="number"
+                value={row.weight || ""}
+                onChange={(e) => onUpdateWeight(Number(e.target.value))}
+                placeholder="继承渠道"
+                className={subInputCls}
+              />
+            </label>
+          </div>
+
+          {/* Format overrides */}
+          {row.formats.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="block font-mono text-[9px] text-dim uppercase tracking-wider">格式覆盖</span>
+              {row.formats.map((f, fi) => (
+                <div key={fi} className="grid grid-cols-[7rem_1fr_7rem_auto] gap-1.5 items-center">
+                  <select
+                    value={f.format}
+                    onChange={(e) => onUpdateFormat(fi, { format: e.target.value })}
+                    className={subInputCls}
+                  >
+                    {FORMAT_OPTIONS.map((fo) => (
+                      <option key={fo.value} value={fo.value}>{fo.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={f.endpointUrl}
+                    onChange={(e) => onUpdateFormat(fi, { endpointUrl: e.target.value })}
+                    placeholder="端点 URL"
+                    className={subInputCls}
+                  />
+                  <select
+                    value={f.authType}
+                    onChange={(e) => onUpdateFormat(fi, { authType: e.target.value })}
+                    className={subInputCls}
+                  >
+                    <option value="">认证继承</option>
+                    <option value="bearer">Bearer</option>
+                    <option value="x-api-key">x-api-key</option>
+                  </select>
+                  <button
+                    onClick={() => onRemoveFormat(fi)}
+                    className="text-dim hover:text-rose transition-colors font-mono text-xs px-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={onAddFormat}
+            className="font-mono text-[10px] text-mint hover:underline"
+          >
+            + 添加格式覆盖
+          </button>
         </div>
       )}
     </div>
@@ -563,9 +658,10 @@ function ChannelCard({
         <div className="mt-3 flex flex-wrap gap-1.5">
           {channel.models.map((model) => {
             const mapped = mapping[model]
-            const modelFmts = overrides[model] || {}
-            const fmtKeys = Object.keys(modelFmts)
-            const hasOverride = fmtKeys.length > 0
+            const modelOv = overrides[model] || {}
+            const modelWeight = modelOv.weight as number | undefined
+            const fmtKeys = Object.keys(modelOv).filter((k) => k !== "weight")
+            const hasOverride = fmtKeys.length > 0 || modelWeight !== undefined
             return (
               <span
                 key={model}
@@ -573,8 +669,11 @@ function ChannelCard({
               >
                 {model}
                 {mapped && mapped !== model && <span className="text-mint"> → {mapped}</span>}
+                {modelWeight !== undefined && (
+                  <span className="text-mint"> ⚖{modelWeight}</span>
+                )}
                 {fmtKeys.map((fk) => (
-                  <span key={fk} className="text-amber" title={modelFmts[fk]?.endpoint_url}>
+                  <span key={fk} className="text-amber" title={(modelOv[fk] as FormatOverride)?.endpoint_url}>
                     {" "}⚡{formatLabel(fk)}
                   </span>
                 ))}
@@ -592,9 +691,6 @@ function ChannelCard({
     </div>
   )
 }
-
-const inputCls =
-  "w-full px-3 py-2 bg-base border border-line text-text text-sm focus:border-mint focus:outline-none transition-colors"
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

@@ -20,10 +20,14 @@ pub fn select_channel<'a>(
     channels: &'a [ChannelRow],
     sticky_id: &str,
     excluded: &[i64],
+    model: &str,
 ) -> Option<&'a ChannelRow> {
     let eligible: Vec<&ChannelRow> = channels
         .iter()
-        .filter(|c| c.status == 1 && c.weight > 0 && !excluded.contains(&c.id))
+        .filter(|c| c.status == 1 && !excluded.contains(&c.id))
+        .filter(|c| {
+            effective_weight(c, model) > 0
+        })
         .collect();
 
     if eligible.is_empty() {
@@ -32,7 +36,7 @@ pub fn select_channel<'a>(
 
     let mut weighted: Vec<&ChannelRow> = Vec::new();
     for c in &eligible {
-        for _ in 0..c.weight {
+        for _ in 0..effective_weight(c, model) {
             weighted.push(*c);
         }
     }
@@ -40,6 +44,16 @@ pub fn select_channel<'a>(
     let hash = deterministic_hash(sticky_id);
     let index = (hash as usize) % weighted.len();
     Some(weighted[index])
+}
+
+fn effective_weight(channel: &ChannelRow, model: &str) -> u32 {
+    channel
+        .model_overrides
+        .get(model)
+        .and_then(|mo| mo.get("weight"))
+        .and_then(|w| w.as_i64())
+        .map(|w| w.max(0) as u32)
+        .unwrap_or(channel.weight as u32)
 }
 
 #[cfg(test)]

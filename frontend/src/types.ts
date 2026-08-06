@@ -26,6 +26,11 @@ export interface FormatOverride {
   auth_type?: string
 }
 
+export interface ModelOverrideEntry {
+  weight?: number
+  [format: string]: FormatOverride | number | undefined
+}
+
 export interface Channel {
   id: number
   name: string
@@ -35,7 +40,7 @@ export interface Channel {
   status: number
   weight: number
   model_mapping: Record<string, string>
-  model_overrides: Record<string, Record<string, FormatOverride>>
+  model_overrides: Record<string, ModelOverrideEntry>
   header_override: Record<string, string>
   body_override: Record<string, unknown>
   created_at: string
@@ -79,7 +84,7 @@ export interface CreateChannelRequest {
   models: string[]
   weight?: number
   model_mapping?: Record<string, string>
-  model_overrides?: Record<string, Record<string, FormatOverride>>
+  model_overrides?: Record<string, ModelOverrideEntry>
   header_override?: Record<string, string>
   body_override?: Record<string, unknown>
 }

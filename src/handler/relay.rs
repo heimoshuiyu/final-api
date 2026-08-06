@@ -94,7 +94,7 @@ pub async fn handler(
 
     let channel = sticky_channel_id
         .and_then(|sid| channels.iter().find(|c| c.id == sid && c.status == 1))
-        .or_else(|| service::routing::select_channel(&channels, &sticky_id, &[]))
+        .or_else(|| service::routing::select_channel(&channels, &sticky_id, &[], &model))
         .ok_or_else(|| AppError::BadGateway("no channel available".into()))?;
 
     // Apply model mapping and body overrides
