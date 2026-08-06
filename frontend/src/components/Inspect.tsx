@@ -129,7 +129,6 @@ export function Inspect() {
         })
 
         if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
-        setConnState("live")
 
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
@@ -153,7 +152,12 @@ export function Inspect() {
             if (dataLines.length > 0) {
               const data = dataLines.map((l) => l.slice(5).replace(/^ /, "")).join("\n")
               try {
-                handleEvent(JSON.parse(data) as InspectEvent)
+                const parsed = JSON.parse(data)
+                if (parsed.type === "connected") {
+                  setConnState("live")
+                  continue
+                }
+                handleEvent(parsed as InspectEvent)
               } catch {
                 /* skip malformed */
               }

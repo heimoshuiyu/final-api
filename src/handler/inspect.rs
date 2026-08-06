@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use axum::extract::{Query, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
-use futures::stream::{self, Stream};
+use futures::stream::{self, Stream, StreamExt};
 use serde::Deserialize;
 use tokio::sync::broadcast::error::RecvError;
 
@@ -48,7 +48,11 @@ pub async fn stream(
 
     let rx = state.inspect_tx.subscribe();
 
-    let sse_stream = stream::unfold(
+    let initial = stream::once(async {
+        Ok::<_, std::io::Error>(Event::default().data("{\"type\":\"connected\"}"))
+    });
+
+    let events = stream::unfold(
         (rx, HashSet::<String>::new()),
         move |(mut rx, mut tracked)| {
             let filter = filter.clone();
@@ -96,9 +100,9 @@ pub async fn stream(
         },
     );
 
-    Ok(Sse::new(sse_stream).keep_alive(
+    Ok(Sse::new(initial.chain(events)).keep_alive(
         KeepAlive::new()
-            .interval(std::time::Duration::from_secs(15))
+            .interval(std::time::Duration::from_secs(10))
             .text("keep-alive"),
     ))
 }
