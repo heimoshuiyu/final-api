@@ -129,28 +129,41 @@ pub async fn handler(
         }
     };
 
-    // Resolve per-model overrides
-    let model_override = channel.model_overrides.get(model.as_str());
-    let upstream_url = model_override
-        .and_then(|o| o.get("endpoint_url"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| channel.endpoint_url.clone());
-
-    let auth_type = model_override
-        .and_then(|o| o.get("auth_type"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| channel.auth_type.clone());
-
-    // Check endpoint format mismatch
+    // Resolve per-model per-format override
     let incoming_fmt = endpoint_format(&path);
-    let upstream_fmt = endpoint_format(&upstream_url);
-    if incoming_fmt != upstream_fmt {
-        return Err(AppError::BadRequest(format!(
-            "endpoint mismatch: model '{model}' uses {} format, send request to /v1/{}",
-            upstream_fmt, upstream_fmt.route(),
-        )));
+    let fmt_key = incoming_fmt.route();
+    let fmt_override = channel
+        .model_overrides
+        .get(model.as_str())
+        .and_then(|mo| mo.get(fmt_key));
+
+    let (upstream_url, auth_type) = match fmt_override {
+        Some(fo) => {
+            let url = fo
+                .get("endpoint_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| channel.endpoint_url.clone());
+            let auth = fo
+                .get("auth_type")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| channel.auth_type.clone());
+            (url, auth)
+        }
+        None => (channel.endpoint_url.clone(), channel.auth_type.clone()),
+    };
+
+    // Check endpoint format mismatch (only when no format-specific override resolved it)
+    if fmt_override.is_none() {
+        let upstream_fmt = endpoint_format(&upstream_url);
+        if incoming_fmt != upstream_fmt {
+            return Err(AppError::BadRequest(format!(
+                "endpoint mismatch: model '{model}' uses {} format, send request to /v1/{}",
+                upstream_fmt,
+                upstream_fmt.route(),
+            )));
+        }
     }
 
     let upstream_headers = service::proxy::build_upstream_headers(

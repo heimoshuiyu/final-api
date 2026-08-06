@@ -1,22 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createChannel, deleteChannel, fetchChannels, updateChannel } from "../api"
-import type { Channel, CreateChannelRequest, ModelOverride } from "../types"
+import type { Channel, CreateChannelRequest, FormatOverride } from "../types"
 import type { ProviderPreset } from "../preset-types"
 import { modelId, modelOverride } from "../preset-types"
 import presetsData from "../provider-presets.json"
 
 const PRESETS = presetsData as ProviderPreset[]
 
+interface FormatEntry {
+  format: string
+  endpointUrl: string
+  authType: string
+}
+
 interface ModelRow {
   name: string
   mappedTo: string
-  endpointUrl: string
-  authType: string
+  formats: FormatEntry[]
 }
 
 const AUTH_LABELS: Record<string, string> = {
   bearer: "Bearer",
   "x-api-key": "x-api-key",
+}
+
+const FORMAT_OPTIONS: { value: string; label: string }[] = [
+  { value: "chat/completions", label: "Chat" },
+  { value: "messages", label: "Anthropic" },
+  { value: "responses", label: "Responses" },
+]
+
+function formatLabel(fmt: string): string {
+  return FORMAT_OPTIONS.find((f) => f.value === fmt)?.label ?? fmt
+}
+
+function formatFromUrl(url: string): string {
+  if (url.endsWith("/messages")) return "messages"
+  if (url.endsWith("/chat/completions")) return "chat/completions"
+  if (url.endsWith("/responses")) return "responses"
+  if (url.endsWith("/completions")) return "completions"
+  if (url.endsWith("/embeddings")) return "embeddings"
+  if (url.endsWith("/moderations")) return "moderations"
+  return "chat/completions"
 }
 
 export function Channels() {
@@ -31,6 +56,7 @@ export function Channels() {
   const [authType, setAuthType] = useState("bearer")
   const [weight, setWeight] = useState(1)
   const [modelRows, setModelRows] = useState<ModelRow[]>([])
+  const [expandedModels, setExpandedModels] = useState<Set<number>>(new Set())
 
   const [presetSearch, setPresetSearch] = useState("")
   const [showPresetList, setShowPresetList] = useState(false)
@@ -66,6 +92,7 @@ export function Channels() {
     setAuthType("bearer")
     setWeight(1)
     setModelRows([])
+    setExpandedModels(new Set())
     setPresetSearch("")
     setShowPresetList(false)
     setEditingId(null)
@@ -87,12 +114,18 @@ export function Channels() {
     const mapping = ch.model_mapping || {}
     const overrides = ch.model_overrides || {}
     setModelRows(
-      ch.models.map((m) => ({
-        name: m,
-        mappedTo: mapping[m] || "",
-        endpointUrl: overrides[m]?.endpoint_url || "",
-        authType: overrides[m]?.auth_type || "",
-      })),
+      ch.models.map((m) => {
+        const modelFmts = overrides[m] || {}
+        return {
+          name: m,
+          mappedTo: mapping[m] || "",
+          formats: Object.entries(modelFmts).map(([fmt, ov]) => ({
+            format: fmt,
+            endpointUrl: ov.endpoint_url || "",
+            authType: ov.auth_type || "",
+          })),
+        }
+      }),
     )
     setShowForm(true)
   }
@@ -105,12 +138,15 @@ export function Channels() {
       preset.models.map((m) => {
         const mid = modelId(m)
         const ov = modelOverride(m)
-        return {
-          name: mid,
-          mappedTo: "",
-          endpointUrl: ov?.endpoint_url || "",
-          authType: ov?.auth_type || "",
+        const formats: FormatEntry[] = []
+        if (ov?.endpoint_url || ov?.auth_type) {
+          formats.push({
+            format: formatFromUrl(ov?.endpoint_url || preset.endpoint_url),
+            endpointUrl: ov?.endpoint_url || "",
+            authType: ov?.auth_type || "",
+          })
         }
+        return { name: mid, mappedTo: "", formats }
       }),
     )
     setShowPresetList(false)
@@ -118,11 +154,52 @@ export function Channels() {
   }
 
   const addModelRow = () => {
-    setModelRows((prev) => [...prev, { name: "", mappedTo: "", endpointUrl: "", authType: "" }])
+    setModelRows((prev) => [...prev, { name: "", mappedTo: "", formats: [] }])
   }
 
   const updateModelRow = (index: number, patch: Partial<ModelRow>) => {
     setModelRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  const toggleExpand = (index: number) => {
+    setExpandedModels((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  const addFormatEntry = (modelIndex: number) => {
+    setModelRows((prev) =>
+      prev.map((r, i) => {
+        if (i !== modelIndex) return r
+        const usedFormats = new Set(r.formats.map((f) => f.format))
+        const nextFmt = FORMAT_OPTIONS.find((f) => !usedFormats.has(f.value))
+        return {
+          ...r,
+          formats: [...r.formats, { format: nextFmt?.value || "chat/completions", endpointUrl: "", authType: "" }],
+        }
+      }),
+    )
+  }
+
+  const updateFormatEntry = (modelIndex: number, fmtIndex: number, patch: Partial<FormatEntry>) => {
+    setModelRows((prev) =>
+      prev.map((r, i) => {
+        if (i !== modelIndex) return r
+        return { ...r, formats: r.formats.map((f, fi) => (fi === fmtIndex ? { ...f, ...patch } : f)) }
+      }),
+    )
+  }
+
+  const removeFormatEntry = (modelIndex: number, fmtIndex: number) => {
+    setModelRows((prev) =>
+      prev.map((r, i) => {
+        if (i !== modelIndex) return r
+        return { ...r, formats: r.formats.filter((_, fi) => fi !== fmtIndex) }
+      }),
+    )
   }
 
   const removeModelRow = (index: number) => {
@@ -145,16 +222,20 @@ export function Channels() {
     try {
       const models = validRows.map((r) => r.name.trim())
       const model_mapping: Record<string, string> = {}
-      const model_overrides: Record<string, ModelOverride> = {}
+      const model_overrides: Record<string, Record<string, FormatOverride>> = {}
       for (const row of validRows) {
         const m = row.name.trim()
         if (row.mappedTo.trim()) model_mapping[m] = row.mappedTo.trim()
-        if (row.endpointUrl.trim() || row.authType) {
-          const ov: ModelOverride = {}
-          if (row.endpointUrl.trim()) ov.endpoint_url = row.endpointUrl.trim()
-          if (row.authType) ov.auth_type = row.authType
-          model_overrides[m] = ov
+        const fmtMap: Record<string, FormatOverride> = {}
+        for (const fe of row.formats) {
+          if (fe.endpointUrl.trim() || fe.authType) {
+            const ov: FormatOverride = {}
+            if (fe.endpointUrl.trim()) ov.endpoint_url = fe.endpointUrl.trim()
+            if (fe.authType) ov.auth_type = fe.authType
+            fmtMap[fe.format] = ov
+          }
         }
+        if (Object.keys(fmtMap).length > 0) model_overrides[m] = fmtMap
       }
 
       const payload: CreateChannelRequest = {
@@ -300,75 +381,103 @@ export function Channels() {
             />
           </Field>
 
-          {/* Models table */}
+          {/* Models */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-[10px] text-dim uppercase tracking-widest">模型（{modelRows.length}）</span>
-              <span className="font-mono text-[10px] text-dim">留空则继承渠道设置</span>
+              <span className="font-mono text-[10px] text-dim">无覆盖则继承渠道设置</span>
             </div>
 
             {modelRows.length > 0 && (
-              <div className="border border-line overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-line">
-                      <th className="text-left px-3 py-2 font-mono text-[10px] text-dim uppercase tracking-widest font-normal w-1/4">模型名</th>
-                      <th className="text-left px-3 py-2 font-mono text-[10px] text-dim uppercase tracking-widest font-normal w-1/4">映射到</th>
-                      <th className="text-left px-3 py-2 font-mono text-[10px] text-dim uppercase tracking-widest font-normal w-1/3">端点 URL 覆盖</th>
-                      <th className="text-left px-3 py-2 font-mono text-[10px] text-dim uppercase tracking-widest font-normal w-32">认证覆盖</th>
-                      <th className="w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modelRows.map((row, i) => (
-                      <tr key={i} className="border-t border-line/50">
-                        <td className="px-1 py-1">
-                          <input
-                            value={row.name}
-                            onChange={(e) => updateModelRow(i, { name: e.target.value })}
-                            placeholder="模型名"
-                            className="w-full bg-transparent px-2 py-1 text-text font-mono text-xs focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-1 py-1">
-                          <input
-                            value={row.mappedTo}
-                            onChange={(e) => updateModelRow(i, { mappedTo: e.target.value })}
-                            placeholder="—"
-                            className="w-full bg-transparent px-2 py-1 text-text font-mono text-xs focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-1 py-1">
-                          <input
-                            value={row.endpointUrl}
-                            onChange={(e) => updateModelRow(i, { endpointUrl: e.target.value })}
-                            placeholder="—"
-                            className="w-full bg-transparent px-2 py-1 text-dim font-mono text-xs focus:outline-none"
-                          />
-                        </td>
-                        <td className="px-1 py-1">
-                          <select
-                            value={row.authType}
-                            onChange={(e) => updateModelRow(i, { authType: e.target.value })}
-                            className="w-full bg-transparent px-2 py-1 text-xs focus:outline-none"
+              <div className="border border-line">
+                {modelRows.map((row, i) => (
+                  <div key={i} className={i > 0 ? "border-t border-line/50" : ""}>
+                    {/* Model row */}
+                    <div className="flex items-center gap-2 px-2 py-1.5">
+                      <input
+                        value={row.name}
+                        onChange={(e) => updateModelRow(i, { name: e.target.value })}
+                        placeholder="模型名"
+                        className="flex-1 min-w-0 bg-transparent px-1 py-0.5 text-text font-mono text-xs focus:outline-none"
+                      />
+                      <input
+                        value={row.mappedTo}
+                        onChange={(e) => updateModelRow(i, { mappedTo: e.target.value })}
+                        placeholder="映射→"
+                        className="w-28 bg-transparent px-1 py-0.5 text-dim font-mono text-xs focus:outline-none"
+                      />
+                      <div className="flex gap-1 flex-wrap items-center min-w-[60px]">
+                        {row.formats.map((f, fi) => (
+                          <span
+                            key={fi}
+                            className="font-mono text-[9px] px-1.5 py-0.5 border border-amber/40 text-amber whitespace-nowrap cursor-pointer"
+                            onClick={() => toggleExpand(i)}
                           >
-                            <option value="">—</option>
-                            <option value="bearer">Bearer</option>
-                            <option value="x-api-key">x-api-key</option>
-                          </select>
-                        </td>
-                        <td className="px-1 py-1 text-center">
-                          <button
-                            onClick={() => removeModelRow(i)}
-                            className="text-dim hover:text-rose transition-colors font-mono text-xs"
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            {formatLabel(f.format)}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => toggleExpand(i)}
+                        className="font-mono text-xs text-dim hover:text-text transition-colors px-1"
+                      >
+                        {expandedModels.has(i) ? "▴" : "▾"}
+                      </button>
+                      <button
+                        onClick={() => removeModelRow(i)}
+                        className="text-dim hover:text-rose transition-colors font-mono text-xs px-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Format overrides (expanded) */}
+                    {expandedModels.has(i) && (
+                      <div className="pl-6 pr-2 pb-3 space-y-1.5">
+                        {row.formats.map((f, fi) => (
+                          <div key={fi} className="flex items-center gap-1.5">
+                            <select
+                              value={f.format}
+                              onChange={(e) => updateFormatEntry(i, fi, { format: e.target.value })}
+                              className="w-28 bg-transparent border border-line px-1.5 py-1 text-xs font-mono text-text focus:outline-none focus:border-mint"
+                            >
+                              {FORMAT_OPTIONS.map((fo) => (
+                                <option key={fo.value} value={fo.value}>{fo.label}</option>
+                              ))}
+                            </select>
+                            <input
+                              value={f.endpointUrl}
+                              onChange={(e) => updateFormatEntry(i, fi, { endpointUrl: e.target.value })}
+                              placeholder="端点 URL 覆盖"
+                              className="flex-1 min-w-0 bg-transparent border border-line px-2 py-1 text-dim font-mono text-xs focus:outline-none focus:border-mint"
+                            />
+                            <select
+                              value={f.authType}
+                              onChange={(e) => updateFormatEntry(i, fi, { authType: e.target.value })}
+                              className="w-28 bg-transparent border border-line px-1.5 py-1 text-xs font-mono text-text focus:outline-none focus:border-mint"
+                            >
+                              <option value="">认证 —</option>
+                              <option value="bearer">Bearer</option>
+                              <option value="x-api-key">x-api-key</option>
+                            </select>
+                            <button
+                              onClick={() => removeFormatEntry(i, fi)}
+                              className="text-dim hover:text-rose transition-colors font-mono text-xs px-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addFormatEntry(i)}
+                          className="font-mono text-[10px] text-mint hover:underline"
+                        >
+                          + 添加格式覆盖
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 
@@ -424,7 +533,7 @@ function ChannelCard({
   const mapping = channel.model_mapping || {}
   const overrides = channel.model_overrides || {}
   const mappingCount = Object.values(mapping).filter(Boolean).length
-  const overrideCount = Object.keys(overrides).length
+  const overrideCount = Object.values(overrides).filter((fmts) => Object.keys(fmts).length > 0).length
 
   return (
     <div className="border border-line px-5 py-4 bg-panel hover:bg-elevated/50 transition-colors">
@@ -454,8 +563,9 @@ function ChannelCard({
         <div className="mt-3 flex flex-wrap gap-1.5">
           {channel.models.map((model) => {
             const mapped = mapping[model]
-            const ov = overrides[model]
-            const hasOverride = ov && (ov.endpoint_url || ov.auth_type)
+            const modelFmts = overrides[model] || {}
+            const fmtKeys = Object.keys(modelFmts)
+            const hasOverride = fmtKeys.length > 0
             return (
               <span
                 key={model}
@@ -463,9 +573,11 @@ function ChannelCard({
               >
                 {model}
                 {mapped && mapped !== model && <span className="text-mint"> → {mapped}</span>}
-                {hasOverride && (
-                  <span className="text-amber" title={ov.endpoint_url || ov.auth_type}> ⚡</span>
-                )}
+                {fmtKeys.map((fk) => (
+                  <span key={fk} className="text-amber" title={modelFmts[fk]?.endpoint_url}>
+                    {" "}⚡{formatLabel(fk)}
+                  </span>
+                ))}
               </span>
             )
           })}

@@ -21,7 +21,7 @@ export interface Token {
   updated_at: string
 }
 
-export interface ModelOverride {
+export interface FormatOverride {
   endpoint_url?: string
   auth_type?: string
 }
@@ -35,7 +35,7 @@ export interface Channel {
   status: number
   weight: number
   model_mapping: Record<string, string>
-  model_overrides: Record<string, ModelOverride>
+  model_overrides: Record<string, Record<string, FormatOverride>>
   header_override: Record<string, string>
   body_override: Record<string, unknown>
   created_at: string
@@ -79,7 +79,7 @@ export interface CreateChannelRequest {
   models: string[]
   weight?: number
   model_mapping?: Record<string, string>
-  model_overrides?: Record<string, ModelOverride>
+  model_overrides?: Record<string, Record<string, FormatOverride>>
   header_override?: Record<string, string>
   body_override?: Record<string, unknown>
 }
