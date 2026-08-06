@@ -384,26 +384,20 @@ function RequestCardView({
           )}
 
           {/* Request body */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="font-mono text-[10px] text-dim uppercase tracking-widest">请求体</span>
-              <span className="font-mono text-[10px] text-dim/60">{bodySize(card.body)} bytes</span>
-            </div>
-            <pre className="bg-base border border-line p-3 overflow-auto max-h-72 font-mono text-[11px] leading-relaxed text-text whitespace-pre-wrap break-all">
-              {formatBody(card.body)}
-            </pre>
-          </div>
+          <CollapsibleText
+            title="请求体"
+            meta={`${bodySize(card.body)} bytes`}
+            text={formatBody(card.body)}
+          />
 
           {/* Response stream */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="font-mono text-[10px] text-dim uppercase tracking-widest">响应流</span>
-              <span className="font-mono text-[10px] text-dim/60">
-                {streaming ? "receiving…" : `${responseBytes} bytes`}
-              </span>
-            </div>
-            <ResponseStreamPanel text={responseText} streaming={streaming} />
-          </div>
+          <CollapsibleText
+            title="响应流"
+            meta={streaming ? "receiving…" : `${responseBytes} bytes`}
+            text={responseText}
+            streaming={streaming}
+            autoScrollBottom
+          />
 
           {/* Endpoint */}
           <div className="flex items-center gap-2">
@@ -459,28 +453,58 @@ function HeadersSection({
   )
 }
 
-function ResponseStreamPanel({ text, streaming }: { text: string; streaming: boolean }) {
+function CollapsibleText({
+  title,
+  meta,
+  text,
+  streaming,
+  autoScrollBottom,
+}: {
+  title: string
+  meta: string
+  text: string
+  streaming?: boolean
+  autoScrollBottom?: boolean
+}) {
+  const [open, setOpen] = useState(false)
   const ref = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
-    if (ref.current) {
+    if (!open && autoScrollBottom && ref.current) {
       ref.current.scrollTop = ref.current.scrollHeight
     }
-  }, [text])
+  }, [text, open, autoScrollBottom])
 
   return (
-    <pre
-      ref={ref}
-      className="bg-base border border-line p-3 overflow-auto max-h-96 font-mono text-[11px] leading-relaxed text-text whitespace-pre-wrap break-all"
-    >
-      {text}
-      {streaming && (
-        <span className="text-mint" style={{ animation: "blink-cursor 1s step-end infinite" }}>
-          ▌
-        </span>
-      )}
-      {!streaming && !text && <span className="text-dim italic">（空响应）</span>}
-    </pre>
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 group"
+        >
+          <span className="font-mono text-[10px] text-dim uppercase tracking-widest group-hover:text-text transition-colors">
+            {title}
+          </span>
+          <span className="font-mono text-[10px] text-dim/40">{open ? "▴" : "▾"}</span>
+        </button>
+        <span className="font-mono text-[10px] text-dim/60">{meta}</span>
+      </div>
+      <pre
+        ref={ref}
+        className={`bg-base border border-line p-3 overflow-auto font-mono text-[11px] leading-relaxed text-text whitespace-pre-wrap break-all ${
+          open ? "" : "max-h-[14rem]"
+        }`}
+        style={{ overflowAnchor: "none" }}
+      >
+        {text}
+        {streaming && (
+          <span className="text-mint" style={{ animation: "blink-cursor 1s step-end infinite" }}>
+            ▌
+          </span>
+        )}
+        {!streaming && !text && <span className="text-dim italic">（空响应）</span>}
+      </pre>
+    </div>
   )
 }
 

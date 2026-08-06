@@ -60,3 +60,7 @@ podman exec finalapidevcontainer_app_1 bash -c 'cd /workspace/frontend && npm ru
 ## 默认凭据
 
 首次启动自动创建管理员账号 `root / 123456`。
+
+## Git 约定
+
+- **不要自动提交代码。** 除非用户明确要求提交，否则不执行 `git commit`。完成代码改动后停止即可。
