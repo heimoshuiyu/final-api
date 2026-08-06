@@ -59,6 +59,21 @@ pub struct LogQuery {
     pub page_size: Option<i64>,
 }
 
+pub async fn count(pool: &sqlx::PgPool, q: &LogQuery) -> Result<i64, sqlx::Error> {
+    let row: (i64,) = sqlx::query_as(
+        r#"SELECT COUNT(*) FROM request_logs
+           WHERE ($1::bigint IS NULL OR user_id = $1)
+           AND ($2::bigint IS NULL OR channel_id = $2)
+           AND ($3::text IS NULL OR model = $3)"#,
+    )
+    .bind(q.user_id)
+    .bind(q.channel_id)
+    .bind(q.model.as_deref())
+    .fetch_one(pool)
+    .await?;
+    Ok(row.0)
+}
+
 pub async fn list(pool: &sqlx::PgPool, q: &LogQuery) -> Result<Vec<LogRow>, sqlx::Error> {
     let page = q.page.unwrap_or(1).max(1);
     let page_size = q.page_size.unwrap_or(50).min(200);

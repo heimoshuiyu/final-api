@@ -87,5 +87,5 @@ export function fetchLogs(query?: LogQuery) {
     })
   }
   const qs = params.toString()
-  return api<LogEntry[]>(`/api/log${qs ? "?" + qs : ""}`)
+  return api<{ total: number; data: LogEntry[] }>(`/api/log${qs ? "?" + qs : ""}`)
 }

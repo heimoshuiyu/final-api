@@ -13,7 +13,7 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
       .then(([t, c, l]) => {
         setTokens(t)
         setChannels(c)
-        setRecentLogs(l)
+        setRecentLogs(l.data)
       })
       .catch((e) => setError(e.message))
   }, [])
