@@ -144,13 +144,12 @@ pub async fn handler(
         .unwrap_or_else(|| channel.auth_type.clone());
 
     // Check endpoint format mismatch
-    let incoming_is_anthropic = path.ends_with("/messages");
-    let upstream_is_anthropic = upstream_url.ends_with("/messages");
-    if incoming_is_anthropic != upstream_is_anthropic {
+    let incoming_fmt = endpoint_format(&path);
+    let upstream_fmt = endpoint_format(&upstream_url);
+    if incoming_fmt != upstream_fmt {
         return Err(AppError::BadRequest(format!(
-            "endpoint mismatch: model '{model}' requires {}, send request to {}",
-            if upstream_is_anthropic { "Anthropic format" } else { "OpenAI format" },
-            if upstream_is_anthropic { "/v1/messages" } else { "/v1/chat/completions" },
+            "endpoint mismatch: model '{model}' uses {} format, send request to /v1/{}",
+            upstream_fmt, upstream_fmt.route(),
         )));
     }
 
@@ -258,4 +257,70 @@ pub async fn models(
         "object": "list",
         "data": data,
     })))
+}
+
+enum EndpointFormat {
+    Messages,
+    ChatCompletions,
+    Completions,
+    Responses,
+    Embeddings,
+    Moderations,
+    Unknown,
+}
+
+impl EndpointFormat {
+    fn route(&self) -> &str {
+        match self {
+            Self::Messages => "messages",
+            Self::ChatCompletions => "chat/completions",
+            Self::Completions => "completions",
+            Self::Responses => "responses",
+            Self::Embeddings => "embeddings",
+            Self::Moderations => "moderations",
+            Self::Unknown => "",
+        }
+    }
+}
+
+impl std::fmt::Display for EndpointFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Messages => write!(f, "Anthropic"),
+            Self::ChatCompletions => write!(f, "OpenAI Chat"),
+            Self::Completions => write!(f, "OpenAI Completions"),
+            Self::Responses => write!(f, "OpenAI Responses"),
+            Self::Embeddings => write!(f, "Embeddings"),
+            Self::Moderations => write!(f, "Moderations"),
+            Self::Unknown => write!(f, "Unknown"),
+        }
+    }
+}
+
+impl PartialEq for EndpointFormat {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // Unknown matches anything — don't block unrecognized endpoints
+            (Self::Unknown, _) | (_, Self::Unknown) => true,
+            (a, b) => core::mem::discriminant(a) == core::mem::discriminant(b),
+        }
+    }
+}
+
+fn endpoint_format(path: &str) -> EndpointFormat {
+    if path.ends_with("/messages") {
+        EndpointFormat::Messages
+    } else if path.ends_with("/chat/completions") {
+        EndpointFormat::ChatCompletions
+    } else if path.ends_with("/responses") {
+        EndpointFormat::Responses
+    } else if path.ends_with("/completions") {
+        EndpointFormat::Completions
+    } else if path.ends_with("/embeddings") {
+        EndpointFormat::Embeddings
+    } else if path.ends_with("/moderations") {
+        EndpointFormat::Moderations
+    } else {
+        EndpointFormat::Unknown
+    }
 }
