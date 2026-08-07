@@ -408,7 +408,7 @@ function RequestCardView({
             <HeadersSection title="上游响应头" headers={card.respHeaders} defaultOpen={false} />
           )}
 
-          <CollapsibleText title="请求体" meta={`${bodySize(card.body)} bytes`} text={formatBody(card.body)} />
+          <CollapsibleText title="请求体" meta={`${bodySize(card.body)} bytes`} text={formatBody(card.body)} hideWhenClosed />
 
           <CollapsibleText
             title="响应流"
@@ -474,12 +474,14 @@ function CollapsibleText({
   text,
   streaming,
   autoScrollBottom,
+  hideWhenClosed,
 }: {
   title: string
   meta: string
   text: string
   streaming?: boolean
   autoScrollBottom?: boolean
+  hideWhenClosed?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLPreElement>(null)
@@ -501,22 +503,24 @@ function CollapsibleText({
         </button>
         <span className="font-mono text-[10px] text-muted-foreground/60">{meta}</span>
       </div>
-      <pre
-        ref={ref}
-        className={cn(
-          "overflow-auto rounded-lg border border-border/50 bg-background/50 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all",
-          !open && "max-h-[14rem]",
-        )}
-        style={{ overflowAnchor: "none" }}
-      >
-        {text}
-        {streaming && (
-          <span className="text-chart-2" style={{ animation: "blink-cursor 1s step-end infinite" }}>
-            ▌
-          </span>
-        )}
-        {!streaming && !text && <span className="italic text-muted-foreground">（空响应）</span>}
-      </pre>
+      {(!hideWhenClosed || open) && (
+        <pre
+          ref={ref}
+          className={cn(
+            "overflow-auto rounded-lg border border-border/50 bg-background/50 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all",
+            !open && "max-h-[14rem]",
+          )}
+          style={{ overflowAnchor: "none" }}
+        >
+          {text}
+          {streaming && (
+            <span className="text-chart-2" style={{ animation: "blink-cursor 1s step-end infinite" }}>
+              ▌
+            </span>
+          )}
+          {!streaming && !text && <span className="italic text-muted-foreground">（空响应）</span>}
+        </pre>
+      )}
     </div>
   )
 }
