@@ -2,7 +2,7 @@
 
 ## 技术栈
 
-Rust 1.97 + Axum 0.8 + SQLx 0.9（运行时查询，不用 `query!` 宏）+ PostgreSQL。前端：React 19 + Vite 8 + TypeScript 7 + TailwindCSS 4。开发环境：VSCode Dev Container + Podman。
+Rust 1.97 + Axum 0.8 + SQLx 0.9（运行时查询，不用 `query!` 宏）+ PostgreSQL。前端：React 19 + Vite 8 + TypeScript 7 + TailwindCSS 4 + shadcn/ui（new-york 风格，radix-ui 统一包）+ lucide-react 图标。开发环境：VSCode Dev Container + Podman。
 
 ## 常用命令
 
@@ -123,8 +123,8 @@ cd /workspace/frontend && npx npm-check-updates -u && npm install
 - **数据库迁移**：SQLx migrate，通过 `sqlx::migrate!("./migrations")` 嵌入，启动时自动执行。有多个删列迁移——表结构是有意精简的。
 - **编译产物**：`target-dir` 设为 `/tmp/final-api-target`（tmpfs），配置在 `.cargo/config.toml`，不占磁盘，不在 git 中。
 - **前端路由**：基于 hash，无 react-router。`App.tsx` 根据 `window.location.hash` 切换。
-- **前端主题**：`index.css` 中的 CSS 变量 + `<html>` 上的 `data-theme` 属性。侧栏有深色/浅色切换。
-- **Vite proxy 大响应截断**：Vite dev proxy（底层 `http-proxy-3`）在代理大响应（>200KB）时会截断。`/api/presets` 路由使用 `selfHandleResponse: true` 手动缓冲完整响应后再转发，规避此 bug。仅影响开发环境，生产同源不受影响。
+- **前端组件**：shadcn/ui（new-york 风格），组件在 `frontend/src/components/ui/`，通过 `npx shadcn@latest add` 添加。路径别名 `@/` → `src/`。图标用 `lucide-react`。`cn()` 在 `src/lib/utils.ts`。
+- **前端主题**：OKLCH 色彩系统（参考 opencode-token-dashboard 风格）。`index.css` 中定义 CSS 变量，`<html>` 上的 `.dark`/`.light` class 切换主题（非 `data-theme` 属性）。默认深色。工具类：`.glass-panel`（毛玻璃面板）、`.glow-border`（发光边框）、`.accent-gradient-text`（品牌渐变文字）、`.bg-grid`（网格背景）、`.bg-radial-glow`（深色模式径向光晕）。字体：Geist Variable（UI）+ JetBrains Mono Variable（数据）。
 - **Podman**：devcontainer 配置为 rootless Podman。docker-compose.yml 中有 `userns_mode: "keep-id"`。VS Code 设置指向 `podman`/`podman-compose`。
 - **接口格式校验**：中继会拒绝入口端点格式和存储的 `endpoint_url` 后缀不匹配的请求（`/chat/completions` = OpenAI，`/messages` = Anthropic）。
 

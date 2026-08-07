@@ -1,6 +1,31 @@
 import { useEffect, useState } from "react"
 import { fetchChannels, fetchLogs, fetchTokens } from "../api"
 import type { Channel, LogEntry, Token } from "../types"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  KeyRound,
+  Network,
+  Boxes,
+  ArrowRight,
+  AlertTriangle,
+} from "lucide-react"
 
 export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
   const [tokens, setTokens] = useState<Token[]>([])
@@ -22,133 +47,139 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
   const totalModels = new Set(channels.flatMap((c) => c.models)).size
   const errorCount = recentLogs.filter((l) => l.status_code !== 200).length
 
+  const stats = [
+    {
+      label: "活跃令牌",
+      value: tokens.filter((t) => t.status === 1).length,
+      icon: KeyRound,
+      color: "text-chart-1",
+      onClick: () => navigate("/tokens"),
+    },
+    {
+      label: "在线渠道",
+      value: activeChannels.length,
+      suffix: `/ ${channels.length}`,
+      icon: Network,
+      color: "text-chart-2",
+      onClick: () => navigate("/channels"),
+    },
+    {
+      label: "路由模型",
+      value: totalModels,
+      icon: Boxes,
+      color: "text-chart-3",
+      onClick: () => navigate("/channels"),
+    },
+  ]
+
   return (
-    <div style={{ animation: "slide-up 0.3s ease-out" }}>
-      {error && <Notice message={error} />}
+    <div className="animate-slide-up">
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <h1 className="text-3xl font-bold text-heading" style={{ letterSpacing: "-0.02em" }}>
-        概览
-      </h1>
+      <h1 className="text-2xl font-bold tracking-tight">概览</h1>
 
-      <div className="mt-10 grid grid-cols-3 gap-px bg-line">
-        <Stat
-          label="活跃令牌"
-          value={tokens.filter((t) => t.status === 1).length}
-          onClick={() => navigate("/tokens")}
-        />
-        <Stat
-          label="在线渠道"
-          value={activeChannels.length}
-          suffix={`/ ${channels.length}`}
-          onClick={() => navigate("/channels")}
-        />
-        <Stat
-          label="路由模型"
-          value={totalModels}
-          onClick={() => navigate("/channels")}
-        />
+      {/* Stat cards */}
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        {stats.map((stat, i) => {
+          const Icon = stat.icon
+          return (
+            <Card
+              key={stat.label}
+              className="glass-panel glow-border card-hover animate-fade-in gap-0 overflow-hidden border-0"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <button onClick={stat.onClick} className="text-left">
+                {/* Top accent bar */}
+                <div className={`h-[2px] origin-left scale-x-80 transition-transform hover:scale-x-100 ${stat.color} bg-current`} />
+                <CardContent className="flex items-center gap-4 pt-5">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary/50">
+                    <Icon className={`size-5 ${stat.color}`} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      {stat.label}
+                    </p>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <span className="font-mono text-2xl font-bold">{stat.value}</span>
+                      {stat.suffix && (
+                        <span className="font-mono text-sm text-muted-foreground">{stat.suffix}</span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </button>
+            </Card>
+          )
+        })}
       </div>
 
-      <section className="mt-12">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-medium text-heading">最近请求</h2>
-          <button
-            onClick={() => navigate("/logs")}
-            className="font-mono text-xs text-dim hover:text-mint transition-colors"
-          >
-            查看全部 →
-          </button>
-        </div>
-
-        {recentLogs.length === 0 ? (
-          <EmptyState message="还没有请求被路由。" />
-        ) : (
-          <div className="border border-line">
-            <table className="w-full font-mono text-xs">
-              <thead>
-                <tr className="border-b border-line text-dim">
-                  <th className="text-left py-2 px-3 font-normal">状态</th>
-                  <th className="text-left py-2 px-3 font-normal">模型</th>
-                  <th className="text-left py-2 px-3 font-normal">耗时</th>
-                  <th className="text-left py-2 px-3 font-normal">时间</th>
-                </tr>
-              </thead>
-              <tbody>
+      {/* Recent requests */}
+      <Card className="glass-panel glow-border mt-8 border-0 animate-fade-in stagger-3">
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">最近请求</CardTitle>
+            <CardDescription className="text-xs">最近的网关路由记录</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/logs")} className="gap-1 text-muted-foreground">
+            查看全部
+            <ArrowRight className="size-3.5" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {recentLogs.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">还没有请求被路由。</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/50">
+                  <TableHead className="text-xs uppercase tracking-wider">状态</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">模型</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">耗时</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {recentLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-line/50">
-                    <td className="py-2 px-3">
-                      <span className={log.status_code === 200 ? "text-mint" : "text-rose"}>
+                  <TableRow key={log.id} className="border-border/30 font-mono text-xs">
+                    <TableCell>
+                      <span
+                        className={
+                          log.status_code === 200 ? "text-chart-2" : "text-destructive"
+                        }
+                      >
                         {log.status_code}
                       </span>
-                    </td>
-                    <td className="py-2 px-3 text-text">{log.model}</td>
-                    <td className="py-2 px-3 text-dim">{log.duration_ms}ms</td>
-                    <td className="py-2 px-3 text-dim">
-                      {new Date(log.created_at).toLocaleTimeString()}
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="font-mono">{log.model}</TableCell>
+                    <TableCell className="text-muted-foreground">{log.duration_ms}ms</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {new Date(log.created_at).toLocaleTimeString("zh-CN")}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {errorCount > 0 && (
-        <div className="mt-8 px-4 py-3 border border-amber/30 bg-amber/5">
-          <p className="font-mono text-xs text-amber">
+        <Alert className="mt-4 border-chart-3/30 bg-chart-3/5">
+          <AlertTriangle className="size-4 text-chart-3" />
+          <AlertDescription className="text-chart-3">
             最近 {recentLogs.length} 次请求中有 {errorCount} 次返回错误。{" "}
             <button onClick={() => navigate("/logs")} className="underline">
               查看日志
             </button>
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  suffix,
-  onClick,
-}: {
-  label: string
-  value: number
-  suffix?: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="bg-panel px-6 py-8 text-left hover:bg-elevated transition-colors group"
-    >
-      <div className="font-mono text-[10px] text-dim uppercase tracking-widest mb-2">
-        {label}
-      </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-3xl font-bold text-heading group-hover:text-mint transition-colors">
-          {value}
-        </span>
-        {suffix && <span className="font-mono text-sm text-dim">{suffix}</span>}
-      </div>
-    </button>
-  )
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="border border-line px-6 py-10 text-center">
-      <p className="font-mono text-xs text-dim">{message}</p>
-    </div>
-  )
-}
-
-function Notice({ message }: { message: string }) {
-  return (
-    <div className="mb-6 px-4 py-2 border border-rose/30 bg-rose/5">
-      <p className="font-mono text-xs text-rose">{message}</p>
     </div>
   )
 }

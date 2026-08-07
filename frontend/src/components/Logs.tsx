@@ -1,6 +1,33 @@
 import { useCallback, useEffect, useState } from "react"
 import { fetchLogs } from "../api"
 import type { LogEntry } from "../types"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+  Search,
+  AlertCircle,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 20
 
@@ -33,139 +60,110 @@ export function Logs() {
     load()
   }, [load])
 
-  const handleFilter = () => {
-    setPage(1)
-  }
+  const handleFilter = () => setPage(1)
 
   return (
-    <div style={{ animation: "slide-up 0.3s ease-out" }}>
-      <h1 className="text-3xl font-bold text-heading" style={{ letterSpacing: "-0.02em" }}>
-        请求
-      </h1>
-      <p className="mt-2 text-sm text-dim">
-        所有通过网关路由的请求记录。<span className="font-mono">共 {total} 条</span>
-      </p>
+    <div className="animate-slide-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">请求</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            所有通过网关路由的请求记录。
+            <span className="ml-1 font-mono text-xs">共 {total} 条</span>
+          </p>
+        </div>
+      </div>
 
       {error && (
-        <div className="mt-6 px-4 py-2 border border-rose/30 bg-rose/5">
-          <p className="font-mono text-xs text-rose">{error}</p>
-        </div>
+        <Alert variant="destructive" className="mt-6">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      <div className="mt-8 flex gap-2">
-        <input
+      <div className="mt-6 flex gap-2">
+        <Input
           value={modelFilter}
           onChange={(e) => setModelFilter(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleFilter()}
           placeholder="按模型名称筛选"
-          className="flex-1 max-w-xs px-3 py-1.5 bg-panel border border-line text-text font-mono text-xs focus:border-mint focus:outline-none transition-colors"
+          className="max-w-xs font-mono text-xs"
         />
-        <button
-          onClick={handleFilter}
-          className="px-3 py-1.5 border border-line text-xs text-dim hover:text-text hover:border-mint transition-colors font-mono"
-        >
+        <Button variant="outline" size="sm" onClick={handleFilter} className="gap-1.5">
+          <Search className="size-3.5" />
           筛选
-        </button>
+        </Button>
       </div>
 
-      {logs.length === 0 ? (
-        <div className="mt-8 border border-line px-6 py-12 text-center">
-          <p className="font-mono text-xs text-dim">
-            {modelFilter
-              ? `没有找到模型"${modelFilter}"的请求。`
-              : "还没有请求记录。"}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="mt-6 border border-line overflow-x-auto">
-            <table className="w-full font-mono text-xs">
-              <thead>
-                <tr className="border-b border-line text-dim bg-panel">
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    状态
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    模型
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    渠道
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    流式
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    Token
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    缓存
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    耗时
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    会话
-                  </th>
-                  <th className="text-left py-2 px-3 font-normal uppercase tracking-wider text-[10px]">
-                    时间
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+      <Card className="glass-panel glow-border mt-4 border-0 animate-fade-in">
+        <CardContent className="pt-6">
+          {logs.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">
+                {modelFilter ? `没有找到模型 "${modelFilter}" 的请求。` : "还没有请求记录。"}
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/50">
+                  {["状态", "模型", "渠道", "流式", "Token", "缓存", "耗时", "会话", "时间"].map((h) => (
+                    <TableHead key={h} className="text-[10px] uppercase tracking-wider">
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {logs.map((log) => (
-                  <tr key={log.id} className="border-b border-line/40 hover:bg-panel/50">
-                    <td className="py-2 px-3">
+                  <TableRow key={log.id} className="border-border/30 font-mono text-xs">
+                    <TableCell>
                       <span
-                        className={
-                          log.status_code === 200
-                            ? "text-mint"
-                            : log.status_code >= 500
-                              ? "text-rose"
-                              : "text-amber"
-                        }
+                        className={cn(
+                          log.status_code === 200 && "text-chart-2",
+                          log.status_code >= 500 && "text-destructive",
+                          log.status_code >= 300 && log.status_code < 500 && "text-chart-3",
+                        )}
                       >
                         {log.status_code}
                       </span>
-                    </td>
-                    <td className="py-2 px-3 text-text">{log.model || "—"}</td>
-                    <td className="py-2 px-3 text-dim">
+                    </TableCell>
+                    <TableCell>{log.model || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
                       {log.channel_id ? `#${String(log.channel_id).padStart(2, "0")}` : "—"}
-                    </td>
-                    <td className="py-2 px-3 text-dim">{log.is_stream ? "是" : "—"}</td>
-                    <td className="py-2 px-3 text-dim whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{log.is_stream ? "是" : "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {log.total_tokens != null ? (
                         <span>
-                          <span className="text-text">{log.total_tokens}</span>
-                          <span className="text-dim/50">
-                            {" "}
-                            ({log.prompt_tokens ?? 0}+{log.completion_tokens ?? 0})
+                          <span className="text-foreground">{log.total_tokens}</span>
+                          <span className="text-muted-foreground/50">
+                            {" "}({log.prompt_tokens ?? 0}+{log.completion_tokens ?? 0})
                           </span>
                         </span>
                       ) : (
                         "—"
                       )}
-                    </td>
-                    <td className="py-2 px-3 text-dim whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {log.cached_tokens != null || log.cache_creation_tokens != null ? (
                         <span>
                           {log.cached_tokens != null && (
-                            <span className="text-mint">↻{log.cached_tokens}</span>
+                            <span className="text-chart-2">↻{log.cached_tokens}</span>
                           )}
                           {log.cache_creation_tokens != null && (
-                            <span className="text-amber ml-1">
-                              {log.cached_tokens != null ? " " : ""}+{log.cache_creation_tokens}
-                            </span>
+                            <span className="ml-1 text-chart-3">+{log.cache_creation_tokens}</span>
                           )}
                         </span>
                       ) : (
                         "—"
                       )}
-                    </td>
-                    <td className="py-2 px-3 text-dim">{log.duration_ms}ms</td>
-                    <td className="py-2 px-3 text-dim truncate max-w-[120px]">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{log.duration_ms}ms</TableCell>
+                    <TableCell className="max-w-[120px] truncate text-muted-foreground">
                       {log.session_id || "—"}
-                    </td>
-                    <td className="py-2 px-3 text-dim whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {new Date(log.created_at).toLocaleString("zh-CN", {
                         month: "short",
                         day: "numeric",
@@ -173,53 +171,39 @@ export function Logs() {
                         minute: "2-digit",
                         second: "2-digit",
                       })}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Pagination */}
-          <div className="mt-4 flex items-center justify-between">
-            <span className="font-mono text-[10px] text-dim">
-              第 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} 条
+      {/* Pagination */}
+      {logs.length > 0 && (
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            第 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} 条
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon-xs" onClick={() => setPage(1)} disabled={page === 1 || loading}>
+              <ChevronsLeft className="size-3.5" />
+            </Button>
+            <Button variant="outline" size="icon-xs" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1 || loading}>
+              <ChevronLeft className="size-3.5" />
+            </Button>
+            <span className="min-w-[60px] text-center text-xs text-muted-foreground">
+              {page} / {totalPages}
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage(1)}
-                disabled={page === 1 || loading}
-                className="px-2 py-1 border border-line text-xs text-dim hover:text-text hover:border-mint transition-colors disabled:opacity-30 disabled:cursor-not-allowed font-mono"
-              >
-                «
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1 || loading}
-                className="px-2 py-1 border border-line text-xs text-dim hover:text-text hover:border-mint transition-colors disabled:opacity-30 disabled:cursor-not-allowed font-mono"
-              >
-                ‹
-              </button>
-              <span className="font-mono text-xs text-dim min-w-[60px] text-center">
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages || loading}
-                className="px-2 py-1 border border-line text-xs text-dim hover:text-text hover:border-mint transition-colors disabled:opacity-30 disabled:cursor-not-allowed font-mono"
-              >
-                ›
-              </button>
-              <button
-                onClick={() => setPage(totalPages)}
-                disabled={page === totalPages || loading}
-                className="px-2 py-1 border border-line text-xs text-dim hover:text-text hover:border-mint transition-colors disabled:opacity-30 disabled:cursor-not-allowed font-mono"
-              >
-                »
-              </button>
-            </div>
+            <Button variant="outline" size="icon-xs" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages || loading}>
+              <ChevronRight className="size-3.5" />
+            </Button>
+            <Button variant="outline" size="icon-xs" onClick={() => setPage(totalPages)} disabled={page === totalPages || loading}>
+              <ChevronsRight className="size-3.5" />
+            </Button>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

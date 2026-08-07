@@ -1,6 +1,12 @@
 import { useState } from "react"
 import { login } from "../api"
 import { useTheme } from "../theme"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Sun, Moon, Loader2 } from "lucide-react"
+import { AlertCircle } from "lucide-react"
 
 export function Login({ onLogin }: { onLogin: (token: string) => void }) {
   const [username, setUsername] = useState("root")
@@ -25,73 +31,63 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base">
-      <div className="w-full max-w-sm">
-        <div className="mb-12 flex items-center justify-between">
+    <div className="relative flex min-h-screen items-center justify-center bg-background">
+      <div className="pointer-events-none fixed inset-0 bg-radial-glow" />
+      <div className="pointer-events-none fixed inset-0 bg-grid opacity-30" />
+
+      <div className="glass-panel glow-border relative w-full max-w-sm rounded-2xl p-8 animate-scale-in">
+        <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1
-              className="font-mono text-2xl font-bold text-heading"
-              style={{ letterSpacing: "-0.03em" }}
-            >
+            <h1 className="text-2xl font-bold tracking-tight accent-gradient-text" style={{ letterSpacing: "-0.03em" }}>
               final-api
             </h1>
-            <p className="font-mono text-xs text-dim mt-1 tracking-wide">
+            <p className="mt-1 text-sm text-muted-foreground">
               LLM 网关 · 会话亲和路由
             </p>
           </div>
-          <button
-            onClick={toggle}
-            className="font-mono text-[10px] text-dim hover:text-heading transition-colors uppercase tracking-wider"
-          >
-            {theme === "dark" ? "浅色" : "深色"}
-          </button>
+          <Button variant="ghost" size="icon-sm" onClick={toggle}>
+            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </Button>
         </div>
 
-        <form onSubmit={submit} className="space-y-1">
+        <form onSubmit={submit} className="flex flex-col gap-4">
           {error && (
-            <div className="mb-6 px-3 py-2 border border-rose/30 bg-rose/5">
-              <p className="font-mono text-xs text-rose">{error}</p>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
-          <label className="block">
-            <span className="font-mono text-[10px] text-dim uppercase tracking-widest">
-              用户名
-            </span>
-            <input
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="username">用户名</Label>
+            <Input
+              id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
-              className="w-full mt-1.5 px-0 py-2 bg-transparent border-0 border-b border-bright-line text-heading font-mono text-sm focus:border-mint focus:outline-none transition-colors"
+              className="font-mono"
             />
-          </label>
+          </div>
 
-          <label className="block pt-4">
-            <span className="font-mono text-[10px] text-dim uppercase tracking-widest">
-              密码
-            </span>
-            <input
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="password">密码</Label>
+            <Input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="w-full mt-1.5 px-0 py-2 bg-transparent border-0 border-b border-bright-line text-heading font-mono text-sm focus:border-mint focus:outline-none transition-colors"
+              className="font-mono"
             />
-          </label>
-
-          <div className="pt-8">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-mint text-base font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-              style={{ borderRadius: 0 }}
-            >
-              {loading ? "连接中…" : "连接"}
-            </button>
           </div>
+
+          <Button type="submit" disabled={loading} className="mt-4 w-full">
+            {loading && <Loader2 className="size-4 animate-spin" />}
+            {loading ? "连接中…" : "连接"}
+          </Button>
         </form>
 
-        <p className="mt-12 font-mono text-[10px] text-dim">
+        <p className="mt-8 text-xs text-muted-foreground">
           默认账号 root / 123456，登录后请修改密码。
         </p>
       </div>

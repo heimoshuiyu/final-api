@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react"
 import { fetchSelf } from "./api"
 import type { User } from "./types"
-import { ThemeProvider } from "./theme"
-import { Layout } from "./components/Layout"
-import { Login } from "./components/Login"
-import { Dashboard } from "./components/Dashboard"
-import { Tokens } from "./components/Tokens"
-import { Channels } from "./components/Channels"
-import { Logs } from "./components/Logs"
-import { Inspect } from "./components/Inspect"
+import { Layout } from "@/components/Layout"
+import { Login } from "@/components/Login"
+import { Dashboard } from "@/components/Dashboard"
+import { Tokens } from "@/components/Tokens"
+import { Channels } from "@/components/Channels"
+import { Logs } from "@/components/Logs"
+import { Inspect } from "@/components/Inspect"
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean>(!!localStorage.getItem("token"))
@@ -36,30 +35,28 @@ export default function App() {
     setRoute(r)
   }
 
+  if (!authed || !user) {
+    return <Login onLogin={() => setAuthed(true)} />
+  }
+
   return (
-    <ThemeProvider>
-      {!authed || !user ? (
-        <Login onLogin={() => setAuthed(true)} />
-      ) : (
-        <Layout active={route} navigate={navigate}>
-          {(() => {
-            switch (true) {
-              case route === "/":
-                return <Dashboard navigate={navigate} />
-              case route.startsWith("/tokens"):
-                return <Tokens />
-              case route.startsWith("/channels"):
-                return <Channels />
-              case route.startsWith("/logs"):
-                return <Logs />
-              case route.startsWith("/inspect"):
-                return <Inspect />
-              default:
-                return <Dashboard navigate={navigate} />
-            }
-          })()}
-        </Layout>
-      )}
-    </ThemeProvider>
+    <Layout active={route} navigate={navigate}>
+      {(() => {
+        switch (true) {
+          case route === "/":
+            return <Dashboard navigate={navigate} />
+          case route.startsWith("/tokens"):
+            return <Tokens />
+          case route.startsWith("/channels"):
+            return <Channels />
+          case route.startsWith("/logs"):
+            return <Logs />
+          case route.startsWith("/inspect"):
+            return <Inspect />
+          default:
+            return <Dashboard navigate={navigate} />
+        }
+      })()}
+    </Layout>
   )
 }

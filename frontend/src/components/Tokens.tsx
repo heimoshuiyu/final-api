@@ -1,6 +1,27 @@
 import { useCallback, useEffect, useState } from "react"
 import { createToken, deleteToken, fetchTokens } from "../api"
 import type { Token } from "../types"
+import { cn } from "@/lib/utils"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Plus, Trash2, Eye, EyeOff, Copy, Check, Loader2, AlertCircle } from "lucide-react"
 
 export function Tokens() {
   const [tokens, setTokens] = useState<Token[]>([])
@@ -62,111 +83,109 @@ export function Tokens() {
   }
 
   return (
-    <div style={{ animation: "slide-up 0.3s ease-out" }}>
-      <h1 className="text-3xl font-bold text-heading" style={{ letterSpacing: "-0.02em" }}>
-        令牌
-      </h1>
-      <p className="mt-2 text-sm text-dim">
-        用于通过网关认证请求的 API 密钥。
-      </p>
-
-      {error && (
-        <div className="mt-6 px-4 py-2 border border-rose/30 bg-rose/5">
-          <p className="font-mono text-xs text-rose">{error}</p>
-        </div>
-      )}
-
-      <div className="mt-8 flex gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && create()}
-          placeholder="令牌名称"
-          className="flex-1 px-3 py-2 bg-panel border border-line text-text font-mono text-sm focus:border-mint focus:outline-none transition-colors"
-        />
-        <button
-          onClick={create}
-          disabled={creating || !name.trim()}
-          className="px-5 py-2 bg-mint text-base text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-30"
-        >
-          创建令牌
-        </button>
-      </div>
-
-      {tokens.length === 0 ? (
-        <div className="mt-8 border border-line px-6 py-12 text-center">
-          <p className="font-mono text-xs text-dim">
-            还没有令牌，创建一个来开始路由请求。
+    <div className="animate-slide-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">令牌</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            用于通过网关认证请求的 API 密钥。
           </p>
         </div>
-      ) : (
-        <div className="mt-8 border border-line">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-line text-dim">
-                <th className="text-left py-2.5 px-4 font-mono text-[10px] uppercase tracking-widest font-normal">
-                  名称
-                </th>
-                <th className="text-left py-2.5 px-4 font-mono text-[10px] uppercase tracking-widest font-normal">
-                  密钥
-                </th>
-                <th className="text-left py-2.5 px-4 font-mono text-[10px] uppercase tracking-widest font-normal">
-                  状态
-                </th>
-                <th className="text-left py-2.5 px-4 font-mono text-[10px] uppercase tracking-widest font-normal">
-                  创建时间
-                </th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tokens.map((token) => {
-                const revealed = revealedIds.has(token.id)
-                return (
-                  <tr key={token.id} className="border-b border-line/50 hover:bg-panel/50">
-                    <td className="py-2.5 px-4 text-sm text-text">{token.name}</td>
-                    <td className="py-2.5 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-text">
-                          {revealed ? token.key : `${token.key.slice(0, 10)}…${token.key.slice(-4)}`}
-                        </span>
-                        <button
-                          onClick={() => toggleReveal(token.id)}
-                          className="font-mono text-[10px] text-dim hover:text-mint transition-colors"
-                        >
-                          {revealed ? "隐藏" : "显示"}
-                        </button>
-                        {revealed && (
-                          <button
-                            onClick={() => copyKey(token.id, token.key)}
-                            className="font-mono text-[10px] text-dim hover:text-mint transition-colors"
-                          >
-                            {copiedId === token.id ? "已复制" : "复制"}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-4">
-                      <StatusBadge status={token.status} />
-                    </td>
-                    <td className="py-2.5 px-4 font-mono text-xs text-dim">
-                      {new Date(token.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="py-2.5 px-4 text-right">
-                      <button
-                        onClick={() => remove(token.id)}
-                        className="font-mono text-xs text-dim hover:text-rose transition-colors"
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      </div>
+
+      {error && (
+        <Alert variant="destructive" className="mt-6">
+          <AlertCircle className="size-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
+
+      <Card className="glass-panel glow-border mt-6 border-0 animate-fade-in">
+        <CardHeader>
+          <CardTitle className="text-base">创建令牌</CardTitle>
+          <CardDescription className="text-xs">生成一个新的 API 密钥</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && create()}
+              placeholder="令牌名称"
+              className="flex-1"
+            />
+            <Button onClick={create} disabled={creating || !name.trim()}>
+              {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              创建令牌
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="glass-panel glow-border mt-4 border-0 animate-fade-in stagger-2">
+        <CardContent className="pt-6">
+          {tokens.length === 0 ? (
+            <div className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">
+                还没有令牌，创建一个来开始路由请求。
+              </p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/50">
+                  <TableHead className="text-xs uppercase tracking-wider">名称</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">密钥</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">状态</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">创建时间</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tokens.map((token) => {
+                  const revealed = revealedIds.has(token.id)
+                  return (
+                    <TableRow key={token.id} className="border-border/30">
+                      <TableCell className="text-sm">{token.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">
+                            {revealed ? token.key : `${token.key.slice(0, 10)}…${token.key.slice(-4)}`}
+                          </span>
+                          <Button variant="ghost" size="icon-xs" onClick={() => toggleReveal(token.id)}>
+                            {revealed ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                          </Button>
+                          {revealed && (
+                            <Button variant="ghost" size="icon-xs" onClick={() => copyKey(token.id, token.key)}>
+                              {copiedId === token.id ? <Check className="size-3 text-chart-2" /> : <Copy className="size-3" />}
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={token.status} />
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {new Date(token.created_at).toLocaleDateString("zh-CN")}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => remove(token.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -174,16 +193,16 @@ export function Tokens() {
 function StatusBadge({ status }: { status: number }) {
   if (status === 1) {
     return (
-      <span className="inline-flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 bg-mint" style={{ borderRadius: "50%" }} />
-        <span className="font-mono text-[10px] text-mint uppercase">活跃</span>
-      </span>
+      <Badge variant="secondary" className="gap-1.5 bg-chart-2/10 text-chart-2">
+        <span className="size-1.5 rounded-full bg-chart-2" />
+        活跃
+      </Badge>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="w-1.5 h-1.5 bg-dim" style={{ borderRadius: "50%" }} />
-      <span className="font-mono text-[10px] text-dim uppercase">停用</span>
-    </span>
+    <Badge variant="secondary" className="gap-1.5">
+      <span className="size-1.5 rounded-full bg-muted-foreground" />
+      停用
+    </Badge>
   )
 }

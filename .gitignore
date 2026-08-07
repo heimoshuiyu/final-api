@@ -4,3 +4,5 @@
 .env
 *.sqlx
 .sqlx/
+frontend/tsconfig.tsbuildinfo
+.agents/

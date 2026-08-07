@@ -10,11 +10,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = localStorage.getItem("theme") as Theme | null
     if (saved) return saved
-    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"
+    return "dark"
   })
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme)
+    const root = document.documentElement
+    root.classList.remove("light", "dark")
+    root.classList.add(theme)
     localStorage.setItem("theme", theme)
   }, [theme])
 

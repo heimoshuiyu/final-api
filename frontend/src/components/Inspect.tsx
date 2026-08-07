@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { fetchChannels, fetchTokens } from "../api"
 import type { Channel, InspectEvent, RequestCard, Token } from "../types"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import {
+  Pause,
+  Play,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Loader2,
+} from "lucide-react"
 
 const MAX_REQUESTS = 100
 
@@ -29,8 +41,7 @@ function bodySize(body: unknown): number {
 }
 
 function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString("zh-CN", { hour12: false })
+  return new Date(ts).toLocaleTimeString("zh-CN", { hour12: false })
 }
 
 interface FilterState {
@@ -49,7 +60,9 @@ export function Inspect() {
   const [channels, setChannels] = useState<Channel[]>([])
 
   const pausedRef = useRef(false)
-  useEffect(() => { pausedRef.current = paused }, [paused])
+  useEffect(() => {
+    pausedRef.current = paused
+  }, [paused])
 
   useEffect(() => {
     fetchTokens().then(setTokens).catch(() => {})
@@ -101,7 +114,13 @@ export function Inspect() {
       setRequests((prev) =>
         prev.map((r) =>
           r.reqId === event.req_id
-            ? { ...r, status: event.status, durationMs: event.duration_ms, respHeaders: event.resp_headers || {}, usage: event.usage ?? null }
+            ? {
+                ...r,
+                status: event.status,
+                durationMs: event.duration_ms,
+                respHeaders: event.resp_headers || {},
+                usage: event.usage ?? null,
+              }
             : r,
         ),
       )
@@ -145,9 +164,7 @@ export function Inspect() {
             const rawEvent = buffer.slice(0, idx)
             buffer = buffer.slice(idx + 2)
 
-            const dataLines = rawEvent
-              .split("\n")
-              .filter((l) => l.startsWith("data:"))
+            const dataLines = rawEvent.split("\n").filter((l) => l.startsWith("data:"))
 
             if (dataLines.length > 0) {
               const data = dataLines.map((l) => l.slice(5).replace(/^ /, "")).join("\n")
@@ -194,57 +211,49 @@ export function Inspect() {
     setExpandedIds(new Set())
   }
 
-  const connDot =
-    connState === "live" ? "bg-mint" : connState === "reconnecting" ? "bg-rose" : "bg-amber"
+  const connColor =
+    connState === "live" ? "bg-chart-2" : connState === "reconnecting" ? "bg-destructive" : "bg-chart-3"
   const connLabel =
     connState === "live" ? (paused ? "已暂停" : "LIVE") : connState === "reconnecting" ? "重连中" : "连接中"
 
   return (
-    <div style={{ animation: "slide-up 0.3s ease-out" }}>
+    <div className="animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-heading" style={{ letterSpacing: "-0.02em" }}>
-            实时监控
-          </h1>
-          <p className="mt-2 text-sm text-dim">实时查看请求体与流式响应。</p>
+          <h1 className="text-2xl font-bold tracking-tight">实时监控</h1>
+          <p className="mt-1 text-sm text-muted-foreground">实时查看请求体与流式响应。</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setPaused((p) => !p)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              paused
-                ? "bg-mint text-base hover:opacity-90"
-                : "border border-bright-line text-text hover:border-mint"
-            }`}
-          >
+          <Button variant={paused ? "default" : "outline"} onClick={() => setPaused((p) => !p)}>
+            {paused ? <Play className="size-4" /> : <Pause className="size-4" />}
             {paused ? "继续" : "暂停"}
-          </button>
-          <button
-            onClick={clearAll}
-            className="px-4 py-2 border border-bright-line text-sm text-dim hover:text-rose hover:border-rose/40 transition-colors"
-          >
+          </Button>
+          <Button variant="outline" onClick={clearAll} className="text-muted-foreground hover:text-destructive">
+            <Trash2 className="size-4" />
             清空
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Status bar */}
-      <div className="mt-6 flex items-center gap-6 flex-wrap">
+      <div className="mt-6 flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <span
-            className={`inline-block w-2 h-2 ${connDot}`}
-            style={{
-              borderRadius: "50%",
-              animation: connState === "live" && !paused ? "pulse-dot 1.5s ease-in-out infinite" : undefined,
-            }}
-          />
-          <span className="font-mono text-xs text-text font-medium">{connLabel}</span>
+          <span className="relative flex size-2">
+            {connState === "live" && !paused && (
+              <span className={cn("absolute inline-flex size-full animate-ping rounded-full opacity-75", connColor)} />
+            )}
+            <span className={cn("relative inline-flex size-2 rounded-full", connColor)} />
+          </span>
+          <span className="text-xs font-medium">{connLabel}</span>
           {activeCount > 0 && (
-            <span className="font-mono text-xs text-dim ml-2">{activeCount} 个活跃请求</span>
+            <Badge variant="secondary" className="ml-2 gap-1">
+              <Loader2 className="size-3 animate-spin" />
+              {activeCount} 活跃
+            </Badge>
           )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           <MultiSelect
             label="令牌"
             options={tokens.map((t) => ({ value: String(t.id), label: t.name }))}
@@ -266,22 +275,22 @@ export function Inspect() {
             parseValue={Number}
           />
           {(filters.tokenIds.size > 0 || filters.models.size > 0 || filters.channelIds.size > 0) && (
-            <button
-              onClick={() => setFilters({ tokenIds: new Set(), models: new Set(), channelIds: new Set() })}
-              className="font-mono text-xs text-dim hover:text-text transition-colors px-2"
-            >
+            <Button variant="ghost" size="xs" onClick={() => setFilters({ tokenIds: new Set(), models: new Set(), channelIds: new Set() })}>
               重置筛选
-            </button>
+            </Button>
           )}
         </div>
       </div>
 
       {/* Request list */}
-      <div className="mt-6 space-y-2">
+      <div className="mt-6 flex flex-col gap-2">
         {requests.length === 0 ? (
-          <div className="border border-line px-6 py-16 text-center">
-            <div className="inline-block w-2 h-2 bg-mint mb-4" style={{ borderRadius: "50%", animation: "pulse-dot 1.5s ease-in-out infinite" }} />
-            <p className="font-mono text-xs text-dim">等待请求流入…</p>
+          <div className="glass-panel glow-border flex flex-col items-center rounded-xl py-16 text-center">
+            <span className="relative flex size-2.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-chart-2 opacity-75" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-chart-2" />
+            </span>
+            <p className="mt-4 text-sm text-muted-foreground">等待请求流入…</p>
           </div>
         ) : (
           requests.map((card) => (
@@ -313,95 +322,94 @@ function RequestCardView({
 
   return (
     <div
-      className="border border-line bg-panel"
-      style={expanded ? undefined : { animation: "flash-in 0.4s ease-out" }}
+      className={cn(
+        "glass-panel glow-border overflow-hidden rounded-xl",
+        expanded ? undefined : "animate-fade-in",
+      )}
     >
       {/* Header */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-elevated/40 transition-colors"
+        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/40"
       >
         {/* Status indicator */}
-        <span
-          className={`inline-block w-1.5 h-1.5 flex-shrink-0 ${
-            streaming ? "bg-amber" : card.status && card.status >= 200 && card.status < 300 ? "bg-mint" : card.status && card.status >= 400 ? "bg-rose" : "bg-dim"
-          }`}
-          style={{ borderRadius: "50%", animation: streaming ? "pulse-dot 1s ease-in-out infinite" : undefined }}
-        />
+          <span
+            className={cn(
+              "relative inline-flex size-1.5 shrink-0 rounded-full",
+              streaming ? "bg-chart-3" : card.status && card.status >= 200 && card.status < 300 ? "bg-chart-2" : card.status && card.status >= 400 ? "bg-destructive" : "bg-muted-foreground",
+            )}
+          >
+          {streaming && (
+            <span className="absolute inline-flex animate-ping rounded-full bg-chart-3 opacity-75" style={{ width: "0.375rem", height: "0.375rem" }} />
+          )}
+        </span>
 
         {/* Model */}
-        <span className="font-mono text-xs font-medium text-heading truncate flex-shrink-0 max-w-[20rem]">
+        <span className="max-w-[20rem] shrink-0 truncate font-mono text-xs font-medium">
           {card.model}
         </span>
 
         {/* Channel · Token */}
-        <span className="font-mono text-[10px] text-dim truncate flex-1 min-w-0">
+        <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground">
           {card.channelName} · {card.tokenName}
         </span>
 
         {/* Status / Duration */}
-        <span className="font-mono text-xs flex-shrink-0">
+        <span className="shrink-0 font-mono text-xs">
           {streaming ? (
-            <span className="text-amber">streaming…</span>
+            <span className="flex items-center gap-1 text-chart-3">
+              <Loader2 className="size-3 animate-spin" />
+              streaming…
+            </span>
           ) : (
-            <>
+            <span className="flex items-center gap-2">
               <span
-                className={
-                  card.status && card.status >= 200 && card.status < 300
-                    ? "text-mint"
-                    : card.status && card.status >= 400
-                      ? "text-rose"
-                      : "text-dim"
-                }
+                className={cn(
+                  card.status && card.status >= 200 && card.status < 300 && "text-chart-2",
+                  card.status && card.status >= 400 && "text-destructive",
+                )}
               >
                 {card.status}
               </span>
-              <span className="text-dim ml-2">{card.durationMs}ms</span>
+              <span className="text-muted-foreground">{card.durationMs}ms</span>
               {card.usage?.total_tokens != null && (
-                <span className="text-dim/60 ml-2">
+                <span className="text-muted-foreground/60">
                   · {card.usage.total_tokens} tok
                   {card.usage.cached_tokens != null && card.usage.cached_tokens > 0 && (
-                    <span className="text-mint"> ↻{card.usage.cached_tokens}</span>
+                    <span className="text-chart-2"> ↻{card.usage.cached_tokens}</span>
                   )}
                   {card.usage.cache_creation_tokens != null && card.usage.cache_creation_tokens > 0 && (
-                    <span className="text-amber"> +{card.usage.cache_creation_tokens}</span>
+                    <span className="text-chart-3"> +{card.usage.cache_creation_tokens}</span>
                   )}
                 </span>
               )}
-            </>
+            </span>
           )}
         </span>
 
         {/* Time + req_id */}
-        <span className="font-mono text-[10px] text-dim flex-shrink-0 hidden sm:inline">
+        <span className="hidden shrink-0 font-mono text-[10px] text-muted-foreground sm:inline">
           {formatTime(card.ts)}
         </span>
-        <span className="font-mono text-[10px] text-dim/60 flex-shrink-0">
+        <span className="shrink-0 font-mono text-[10px] text-muted-foreground/60">
           #{shortId(card.reqId)}
         </span>
-        <span className="font-mono text-xs text-dim flex-shrink-0">
-          {expanded ? "▴" : "▾"}
+        <span className="shrink-0">
+          {expanded ? <ChevronUp className="size-3.5 text-muted-foreground" /> : <ChevronDown className="size-3.5 text-muted-foreground" />}
         </span>
       </button>
 
       {/* Expanded body */}
       {expanded && (
-        <div className="border-t border-line/60 px-4 py-3 space-y-3">
-          {/* Headers */}
+        <div className="flex flex-col gap-3 border-t border-border/60 px-4 py-3">
           <HeadersSection title="入站请求头" headers={card.reqHeaders} defaultOpen={false} />
           <HeadersSection title="上游请求头" headers={card.upstreamHeaders} defaultOpen={false} />
           {card.respHeaders && (
             <HeadersSection title="上游响应头" headers={card.respHeaders} defaultOpen={false} />
           )}
 
-          {/* Request body */}
-          <CollapsibleText
-            title="请求体"
-            meta={`${bodySize(card.body)} bytes`}
-            text={formatBody(card.body)}
-          />
+          <CollapsibleText title="请求体" meta={`${bodySize(card.body)} bytes`} text={formatBody(card.body)} />
 
-          {/* Response stream */}
           <CollapsibleText
             title="响应流"
             meta={streaming ? "receiving…" : `${responseBytes} bytes`}
@@ -410,10 +418,9 @@ function RequestCardView({
             autoScrollBottom
           />
 
-          {/* Endpoint */}
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] text-dim uppercase tracking-widest">上游</span>
-            <span className="font-mono text-[10px] text-dim/80 truncate">{card.endpoint}</span>
+            <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">上游</span>
+            <span className="truncate font-mono text-[10px] text-muted-foreground/80">{card.endpoint}</span>
           </div>
         </div>
       )}
@@ -436,26 +443,23 @@ function HeadersSection({
 
   return (
     <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 w-full text-left group"
-      >
-        <span className="font-mono text-[10px] text-dim uppercase tracking-widest group-hover:text-text transition-colors">
+      <button onClick={() => setOpen(!open)} className="group flex w-full items-center gap-2 text-left">
+        <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground transition-colors group-hover:text-foreground">
           {title}
         </span>
-        <span className="font-mono text-[10px] text-dim/60">{entries.length}</span>
-        <span className="font-mono text-[10px] text-dim/40 ml-auto">{open ? "▴" : "▾"}</span>
+        <span className="text-[10px] text-muted-foreground/60">{entries.length}</span>
+        <span className="ml-auto">
+          {open ? <ChevronUp className="size-3 text-muted-foreground/40" /> : <ChevronDown className="size-3 text-muted-foreground/40" />}
+        </span>
       </button>
       {open && (
-        <div className="mt-1.5 bg-base border border-line">
+        <div className="mt-1.5 overflow-hidden rounded-lg border border-border/50">
           {entries.map(([key, value]) => (
-            <div key={key} className="flex border-b border-line/40 last:border-b-0">
-              <span className="font-mono text-[10px] text-dim px-2 py-1 flex-shrink-0 w-40 truncate border-r border-line/40">
+            <div key={key} className="flex border-b border-border/30 last:border-b-0">
+              <span className="w-40 shrink-0 truncate border-r border-border/30 px-2 py-1 font-mono text-[10px] text-muted-foreground">
                 {key}
               </span>
-              <span className="font-mono text-[10px] text-text px-2 py-1 break-all min-w-0 flex-1">
-                {value}
-              </span>
+              <span className="min-w-0 flex-1 break-all px-2 py-1 font-mono text-[10px]">{value}</span>
             </div>
           ))}
         </div>
@@ -488,32 +492,30 @@ function CollapsibleText({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 group"
-        >
-          <span className="font-mono text-[10px] text-dim uppercase tracking-widest group-hover:text-text transition-colors">
+      <div className="mb-1.5 flex items-center justify-between">
+        <button onClick={() => setOpen(!open)} className="group flex items-center gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground transition-colors group-hover:text-foreground">
             {title}
           </span>
-          <span className="font-mono text-[10px] text-dim/40">{open ? "▴" : "▾"}</span>
+          {open ? <ChevronUp className="size-3 text-muted-foreground/40" /> : <ChevronDown className="size-3 text-muted-foreground/40" />}
         </button>
-        <span className="font-mono text-[10px] text-dim/60">{meta}</span>
+        <span className="font-mono text-[10px] text-muted-foreground/60">{meta}</span>
       </div>
       <pre
         ref={ref}
-        className={`bg-base border border-line p-3 overflow-auto font-mono text-[11px] leading-relaxed text-text whitespace-pre-wrap break-all ${
-          open ? "" : "max-h-[14rem]"
-        }`}
+        className={cn(
+          "overflow-auto rounded-lg border border-border/50 bg-background/50 p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all",
+          !open && "max-h-[14rem]",
+        )}
         style={{ overflowAnchor: "none" }}
       >
         {text}
         {streaming && (
-          <span className="text-mint" style={{ animation: "blink-cursor 1s step-end infinite" }}>
+          <span className="text-chart-2" style={{ animation: "blink-cursor 1s step-end infinite" }}>
             ▌
           </span>
         )}
-        {!streaming && !text && <span className="text-dim italic">（空响应）</span>}
+        {!streaming && !text && <span className="italic text-muted-foreground">（空响应）</span>}
       </pre>
     </div>
   )
@@ -558,22 +560,20 @@ function MultiSelect({
 
   return (
     <div ref={ref} className="relative">
-      <button
+      <Button
+        variant="outline"
+        size="xs"
         onClick={() => setOpen(!open)}
-        className={`px-3 py-1.5 text-xs font-mono transition-colors ${
-          count > 0
-            ? "border border-mint/40 text-mint"
-            : "border border-line text-dim hover:text-text"
-        }`}
+        className={cn(count > 0 && "border-chart-2/40 text-chart-2")}
       >
         {label}
         {count > 0 && ` (${count})`}
-        <span className="ml-1.5 opacity-60">{open ? "▴" : "▾"}</span>
-      </button>
+        {open ? <ChevronUp className="ml-1 size-3 opacity-60" /> : <ChevronDown className="ml-1 size-3 opacity-60" />}
+      </Button>
       {open && (
-        <div className="absolute top-full left-0 mt-px z-50 bg-panel border border-bright-line max-h-64 overflow-auto min-w-full w-max">
+        <div className="glass-panel absolute left-0 top-full z-50 mt-1 max-h-64 min-w-full w-max overflow-auto rounded-lg border">
           {options.length === 0 ? (
-            <div className="px-3 py-2 font-mono text-[10px] text-dim">无选项</div>
+            <div className="px-3 py-2 text-[10px] text-muted-foreground">无选项</div>
           ) : (
             options.map((opt) => {
               const checked = selectedSet.has(opt.value)
@@ -581,20 +581,17 @@ function MultiSelect({
                 <button
                   key={opt.value}
                   onClick={() => toggle(opt.value)}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-elevated transition-colors"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-accent"
                 >
                   <span
-                    className={`inline-flex items-center justify-center w-3 h-3 border flex-shrink-0 ${
-                      checked ? "bg-mint border-mint" : "border-line"
-                    }`}
-                  >
-                    {checked && (
-                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                        <path d="M1 4l2 2 4-4" stroke="#0a0b0e" strokeWidth="1.5" />
-                      </svg>
+                    className={cn(
+                      "flex size-3 shrink-0 items-center justify-center rounded border",
+                      checked ? "border-chart-2 bg-chart-2" : "border-border",
                     )}
+                  >
+                    {checked && <Check className="size-2 text-background" />}
                   </span>
-                  <span className="font-mono text-[11px] text-text truncate">{opt.label}</span>
+                  <span className="truncate font-mono text-[11px]">{opt.label}</span>
                 </button>
               )
             })
