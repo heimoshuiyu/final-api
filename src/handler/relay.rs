@@ -213,7 +213,7 @@ pub async fn handler(
             }
 
             let duration_ms = start.elapsed().as_millis() as i32;
-            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &sticky_id, status_code).await?;
+            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &session_id, status_code).await?;
 
             let mut response_builder = Response::builder().status(status);
             for key in resp.headers().keys() {
@@ -246,7 +246,7 @@ pub async fn handler(
         }
         Err(e) => {
             let duration_ms = start.elapsed().as_millis() as i32;
-            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &sticky_id, 0).await;
+            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &session_id, 0).await;
             let _ = state.inspect_tx.send(InspectEvent::End {
                 req_id,
                 status: 502,

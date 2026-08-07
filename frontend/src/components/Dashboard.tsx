@@ -26,6 +26,7 @@ import {
   ArrowRight,
   AlertTriangle,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
   const [tokens, setTokens] = useState<Token[]>([])
@@ -138,10 +139,11 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/50">
-                  <TableHead className="text-xs uppercase tracking-wider">状态</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider">模型</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider">耗时</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider">时间</TableHead>
+                  {["状态", "模型", "Token", "缓存", "耗时", "会话", "时间"].map((h) => (
+                    <TableHead key={h} className="text-[10px] uppercase tracking-wider">
+                      {h}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -149,16 +151,47 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
                   <TableRow key={log.id} className="border-border/30 font-mono text-xs">
                     <TableCell>
                       <span
-                        className={
-                          log.status_code === 200 ? "text-chart-2" : "text-destructive"
-                        }
+                        className={cn(
+                          log.status_code === 200 && "text-chart-2",
+                          log.status_code >= 500 && "text-destructive",
+                          log.status_code >= 300 && log.status_code < 500 && "text-chart-3",
+                        )}
                       >
                         {log.status_code}
                       </span>
                     </TableCell>
-                    <TableCell className="font-mono">{log.model}</TableCell>
+                    <TableCell>{log.model || "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {log.total_tokens != null ? (
+                        <span>
+                          <span className="text-foreground">{log.total_tokens}</span>
+                          <span className="text-muted-foreground/50">
+                            {" "}({log.prompt_tokens ?? 0}+{log.completion_tokens ?? 0})
+                          </span>
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {log.cached_tokens != null || log.cache_creation_tokens != null ? (
+                        <span>
+                          {log.cached_tokens != null && (
+                            <span className="text-chart-2">↻{log.cached_tokens}</span>
+                          )}
+                          {log.cache_creation_tokens != null && (
+                            <span className="ml-1 text-chart-3">+{log.cache_creation_tokens}</span>
+                          )}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{log.duration_ms}ms</TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="max-w-[120px] truncate text-muted-foreground">
+                      {log.session_id || "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {new Date(log.created_at).toLocaleTimeString("zh-CN")}
                     </TableCell>
                   </TableRow>
