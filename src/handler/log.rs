@@ -22,11 +22,11 @@ pub async fn list(
     q.workspace_id = Some(auth.workspace_id);
 
     // Members can only see their own logs (unless filtering by their own token)
-    if auth.workspace_role < 10 && q.user_id.is_none() {
+    if auth.user_role < 10 && q.user_id.is_none() {
         q.user_id = Some(auth.user_id);
     }
     // Members cannot snoop other users' logs
-    if auth.workspace_role < 10 && q.user_id != Some(auth.user_id) {
+    if auth.user_role < 10 && q.user_id != Some(auth.user_id) {
         q.user_id = Some(auth.user_id);
     }
 

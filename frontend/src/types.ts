@@ -1,6 +1,7 @@
 export interface User {
   id: number
   username: string
+  role: number
   status: number
   created_at?: string
 }
@@ -45,11 +46,8 @@ export interface WorkspaceMember {
 
 export interface WorkspaceInvite {
   id: number
-  username: string
-  role: number
-  status: number
+  token: string
   created_at: string
-  expires_at: string | null
 }
 
 export interface Token {

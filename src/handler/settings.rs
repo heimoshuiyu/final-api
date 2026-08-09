@@ -7,7 +7,6 @@ use crate::db;
 use crate::error::AppError;
 use crate::middleware::auth::JwtAuth;
 use crate::state::AppState;
-
 const SUPPORTED_PROVIDERS: &[(&str, &str)] = &[
     ("github", "GitHub"),
     ("google", "Google"),
@@ -43,8 +42,7 @@ pub async fn admin_settings(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<JwtAuth>,
 ) -> Result<Json<Value>, AppError> {
-    let is_admin = db::workspace::is_any_workspace_admin(&state.pool, auth.user_id).await?;
-    if !is_admin {
+    if auth.user_role < 10 {
         return Err(AppError::Forbidden("admin access required".into()));
     }
 
@@ -103,8 +101,7 @@ pub async fn update_settings(
     axum::Extension(auth): axum::Extension<JwtAuth>,
     Json(req): Json<UpdateSettingsRequest>,
 ) -> Result<Json<Value>, AppError> {
-    let is_admin = db::workspace::is_any_workspace_admin(&state.pool, auth.user_id).await?;
-    if !is_admin {
+    if auth.user_role < 10 {
         return Err(AppError::Forbidden("admin access required".into()));
     }
 

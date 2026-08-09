@@ -8,6 +8,7 @@ pub struct UserRow {
     pub username: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
+    pub role: i16,
     pub status: i16,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -42,4 +43,30 @@ pub async fn create(
     .bind(password_hash)
     .fetch_one(pool)
     .await
+}
+
+pub async fn set_role(
+    pool: &sqlx::PgPool,
+    user_id: i64,
+    role: i16,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET role = $2 WHERE id = $1")
+        .bind(user_id)
+        .bind(role)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn find_by_ids(
+    pool: &sqlx::PgPool,
+    ids: Vec<i64>,
+) -> Result<Vec<UserRow>, sqlx::Error> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    sqlx::query_as::<_, UserRow>("SELECT * FROM users WHERE id = ANY($1)")
+        .bind(&ids)
+        .fetch_all(pool)
+        .await
 }

@@ -63,7 +63,7 @@ async fn init_default_admin(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
         let password_hash =
             middleware::auth::hash_password("123456").expect("failed to hash default password");
         let user: (i64,) = sqlx::query_as(
-            "INSERT INTO users (username, password_hash) VALUES ('root', $1) RETURNING id",
+            "INSERT INTO users (username, password_hash, role) VALUES ('root', $1, 10) RETURNING id",
         )
         .bind(password_hash)
         .fetch_one(pool)
@@ -78,7 +78,7 @@ async fn init_default_admin(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
         .await?;
 
         sqlx::query(
-            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 10)",
+            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 1)",
         )
         .bind(ws.0)
         .bind(user.0)

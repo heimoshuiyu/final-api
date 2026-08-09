@@ -30,17 +30,15 @@ pub async fn login(
         return Err(AppError::Unauthorized("invalid credentials".into()));
     }
 
-    // Auto-accept any pending workspace invites
-    let _ = accept_pending_invites(&state.pool, &user.username, user.id).await;
-
     let workspaces = db::workspace::list_by_user(&state.pool, user.id).await?;
 
-    let token = create_jwt(&state.config.jwt_secret, user.id, &user.username)?;
+    let token = create_jwt(&state.config.jwt_secret, user.id, &user.username, user.role)?;
     Ok(Json(serde_json::json!({
         "token": token,
         "user": {
             "id": user.id,
             "username": user.username,
+            "role": user.role,
             "status": user.status,
         },
         "workspaces": workspaces.iter().map(|w| {
@@ -83,27 +81,15 @@ pub async fn register(
     let hash = hash_password(&req.password)?;
     let user = db::user::create(&state.pool, &req.username, &hash).await?;
 
-    // Create default workspace
-    let ws = db::workspace::create(
-        &state.pool,
-        &format!("{}'s Workspace", user.username),
-        None,
-        user.id,
-    )
-    .await?;
-    db::workspace::add_member(&state.pool, ws.id, user.id, 10).await?;
-
-    // Auto-accept any pending invites
-    let _ = accept_pending_invites(&state.pool, &user.username, user.id).await;
-
     let workspaces = db::workspace::list_by_user(&state.pool, user.id).await?;
 
-    let token = create_jwt(&state.config.jwt_secret, user.id, &user.username)?;
+    let token = create_jwt(&state.config.jwt_secret, user.id, &user.username, user.role)?;
     Ok(Json(serde_json::json!({
         "token": token,
         "user": {
             "id": user.id,
             "username": user.username,
+            "role": user.role,
             "status": user.status,
         },
         "workspaces": workspaces.iter().map(|w| {
@@ -128,6 +114,7 @@ pub async fn self_info(
     Ok(Json(serde_json::json!({
         "id": user.id,
         "username": user.username,
+        "role": user.role,
         "status": user.status,
         "created_at": user.created_at,
     })))
@@ -151,16 +138,4 @@ pub async fn list_workspaces(
             })
             .collect::<Vec<_>>()
     )))
-}
-
-async fn accept_pending_invites(
-    pool: &sqlx::PgPool,
-    username: &str,
-    user_id: i64,
-) -> Result<(), sqlx::Error> {
-    let invites = db::workspace::find_pending_invites_by_username(pool, username).await?;
-    for invite in invites {
-        let _ = db::workspace::accept_invite(pool, invite.id, user_id).await;
-    }
-    Ok(())
 }

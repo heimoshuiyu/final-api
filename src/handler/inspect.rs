@@ -44,7 +44,7 @@ pub async fn stream(
 ) -> Result<Sse<impl Stream<Item = Result<Event, std::io::Error>>>, AppError> {
     let workspace_id = auth.workspace_id;
     let user_id = auth.user_id;
-    let is_admin = auth.workspace_role >= 10;
+    let is_admin = auth.user_role >= 10;
     let scope_workspace = query.scope.as_deref() == Some("workspace");
 
     if scope_workspace && !is_admin {

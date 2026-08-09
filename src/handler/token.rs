@@ -21,7 +21,7 @@ pub async fn list(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<JwtAuth>,
 ) -> Result<Json<Vec<db::token::TokenRow>>, AppError> {
-    let tokens = if auth.workspace_role >= 10 {
+    let tokens = if auth.user_role >= 10 {
         db::token::list_by_workspace(&state.pool, auth.workspace_id).await?
     } else {
         db::token::list_by_user(&state.pool, auth.workspace_id, auth.user_id).await?
@@ -90,7 +90,7 @@ pub async fn update(
         .ok_or_else(|| AppError::NotFound("token not found".into()))?;
 
     // Members can only edit their own tokens
-    if auth.workspace_role < 10 && existing.user_id != auth.user_id {
+    if auth.user_role < 10 && existing.user_id != auth.user_id {
         return Err(AppError::Forbidden("not your token".into()));
     }
 

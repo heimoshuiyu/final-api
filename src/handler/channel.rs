@@ -8,8 +8,8 @@ use crate::middleware::auth::JwtAuth;
 use crate::state::AppState;
 
 fn assert_admin(auth: &JwtAuth) -> Result<(), AppError> {
-    if auth.workspace_role < 10 {
-        return Err(AppError::Forbidden("workspace admin required".into()));
+    if auth.user_role < 10 {
+        return Err(AppError::Forbidden("admin required".into()));
     }
     Ok(())
 }

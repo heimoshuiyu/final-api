@@ -33,18 +33,6 @@ pub struct WorkspaceWithRole {
     pub role: i16,
 }
 
-#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
-pub struct InviteRow {
-    pub id: i64,
-    pub workspace_id: i64,
-    pub username: String,
-    pub invited_by: i64,
-    pub role: i16,
-    pub status: i16,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-}
-
 pub async fn create(
     pool: &sqlx::PgPool,
     name: &str,
@@ -132,24 +120,6 @@ pub async fn remove_member(
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn update_member_role(
-    pool: &sqlx::PgPool,
-    workspace_id: i64,
-    user_id: i64,
-    role: i16,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        r#"UPDATE workspace_members SET role = $3
-           WHERE workspace_id = $1 AND user_id = $2"#,
-    )
-    .bind(workspace_id)
-    .bind(user_id)
-    .bind(role)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
 pub async fn list_members(
     pool: &sqlx::PgPool,
     workspace_id: i64,
@@ -191,25 +161,30 @@ pub async fn rename(
     .await
 }
 
-// ---- Invites ----
+// ---- Token-based invites ----
+
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct InviteRow {
+    pub id: i64,
+    pub workspace_id: i64,
+    pub token: String,
+    pub created_by: i64,
+    pub created_at: DateTime<Utc>,
+}
 
 pub async fn create_invite(
     pool: &sqlx::PgPool,
     workspace_id: i64,
-    username: &str,
-    invited_by: i64,
-    role: i16,
-    expires_at: Option<chrono::DateTime<Utc>>,
+    token: &str,
+    created_by: i64,
 ) -> Result<InviteRow, sqlx::Error> {
     sqlx::query_as::<_, InviteRow>(
-        r#"INSERT INTO workspace_invites (workspace_id, username, invited_by, role, expires_at)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *"#,
+        r#"INSERT INTO workspace_invites (workspace_id, token, created_by)
+           VALUES ($1, $2, $3) RETURNING *"#,
     )
     .bind(workspace_id)
-    .bind(username)
-    .bind(invited_by)
-    .bind(role)
-    .bind(expires_at)
+    .bind(token)
+    .bind(created_by)
     .fetch_one(pool)
     .await
 }
@@ -220,32 +195,23 @@ pub async fn list_invites(
 ) -> Result<Vec<InviteRow>, sqlx::Error> {
     sqlx::query_as::<_, InviteRow>(
         r#"SELECT * FROM workspace_invites
-           WHERE workspace_id = $1 AND status = 0 ORDER BY created_at DESC"#,
+           WHERE workspace_id = $1 ORDER BY created_at DESC"#,
     )
     .bind(workspace_id)
     .fetch_all(pool)
     .await
 }
 
-pub async fn accept_invite(
+pub async fn find_invite_by_token(
     pool: &sqlx::PgPool,
-    invite_id: i64,
-    user_id: i64,
-) -> Result<Option<(i64, i16)>, sqlx::Error> {
-    let row: Option<(i64, i16)> = sqlx::query_as(
-        r#"UPDATE workspace_invites SET status = 1 WHERE id = $1 AND status = 0
-           RETURNING workspace_id, role"#,
+    token: &str,
+) -> Result<Option<InviteRow>, sqlx::Error> {
+    sqlx::query_as::<_, InviteRow>(
+        "SELECT * FROM workspace_invites WHERE token = $1",
     )
-    .bind(invite_id)
+    .bind(token)
     .fetch_optional(pool)
-    .await?;
-
-    if let Some((workspace_id, role)) = row {
-        add_member(pool, workspace_id, user_id, role).await?;
-        Ok(Some((workspace_id, role)))
-    } else {
-        Ok(None)
-    }
+    .await
 }
 
 pub async fn delete_invite(
@@ -261,31 +227,4 @@ pub async fn delete_invite(
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
-}
-
-pub async fn find_pending_invites_by_username(
-    pool: &sqlx::PgPool,
-    username: &str,
-) -> Result<Vec<InviteRow>, sqlx::Error> {
-    sqlx::query_as::<_, InviteRow>(
-        r#"SELECT * FROM workspace_invites
-           WHERE username = $1 AND status = 0
-           AND (expires_at IS NULL OR expires_at > NOW())
-           ORDER BY created_at DESC"#,
-    )
-    .bind(username)
-    .fetch_all(pool)
-    .await
-}
-
-pub async fn is_any_workspace_admin(
-    pool: &sqlx::PgPool,
-    user_id: i64,
-) -> Result<bool, sqlx::Error> {
-    let row: Option<(i32,)> =
-        sqlx::query_as("SELECT 1 FROM workspace_members WHERE user_id = $1 AND role = 10 LIMIT 1")
-            .bind(user_id)
-            .fetch_optional(pool)
-            .await?;
-    Ok(row.is_some())
 }

@@ -32,7 +32,7 @@ pub async fn stats(
     let workspace_id = auth.workspace_id;
     let scope_workspace = q.scope.as_deref() == Some("workspace");
 
-    if scope_workspace && auth.workspace_role < 10 {
+    if scope_workspace && auth.user_role < 10 {
         return Err(AppError::Forbidden("admin access required".into()));
     }
 

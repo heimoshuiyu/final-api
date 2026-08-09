@@ -297,15 +297,6 @@ pub async fn oauth_callback(
         let hash = hash_password(&random_password)?;
         let user = db::user::create(&state.pool, &username, &hash).await?;
 
-        let ws = db::workspace::create(
-            &state.pool,
-            &format!("{}'s Workspace", user.username),
-            None,
-            user.id,
-        )
-        .await?;
-        db::workspace::add_member(&state.pool, ws.id, user.id, 10).await?;
-
         db::settings::create_oauth_link(&state.pool, user.id, &provider, &provider_uid).await?;
 
         user.id
@@ -315,7 +306,7 @@ pub async fn oauth_callback(
         .await?
         .ok_or_else(|| AppError::Internal("user not found".into()))?;
 
-    let token = create_jwt(&state.config.jwt_secret, user.id, &user.username)?;
+    let token = create_jwt(&state.config.jwt_secret, user.id, &user.username, user.role)?;
 
     let redirect_url = format!(
         "{}/#/oauth-callback?token={}",

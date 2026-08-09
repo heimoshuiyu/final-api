@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Sun, Moon, Loader2, AlertCircle } from "lucide-react"
+import { Sun, Moon, Loader2, AlertCircle, Users } from "lucide-react"
 
-export function Login({ onLogin }: { onLogin: (token: string) => void }) {
+export function Login({ onLogin, inviteHint }: { onLogin: (token: string) => void; inviteHint?: string }) {
   const [mode, setMode] = useState<"login" | "register">("login")
   const [username, setUsername] = useState("root")
   const [password, setPassword] = useState("123456")
@@ -38,9 +38,6 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
           ? await login(username, password)
           : await register(username, password)
       localStorage.setItem("token", data.token)
-      if (data.workspaces && data.workspaces.length > 0) {
-        window.location.hash = `/ws/${data.workspaces[0].id}`
-      }
       onLogin(data.token)
     } catch (err) {
       setError(err instanceof Error ? err.message : mode === "login" ? "登录失败" : "注册失败")
@@ -66,6 +63,14 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
             <p className="mt-1 text-sm text-muted-foreground">
               LLM 网关 · 会话亲和路由
             </p>
+            {inviteHint && (
+              <div className="mt-3 flex items-center gap-2 rounded-md bg-primary/8 px-3 py-2">
+                <Users className="size-3.5 shrink-0 text-primary" />
+                <p className="text-xs text-primary">
+                  收到「{inviteHint}」的邀请，登录后即可加入
+                </p>
+              </div>
+            )}
           </div>
           <Button variant="ghost" size="icon-sm" onClick={toggle}>
             {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}

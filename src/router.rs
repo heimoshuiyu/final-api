@@ -29,7 +29,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/presets", get(handler::preset::list))
         .route("/api/settings", get(handler::settings::public_settings))
         .route("/api/oauth/{provider}/auth", get(handler::oauth::oauth_auth))
-        .route("/api/oauth/{provider}/callback", get(handler::oauth::oauth_callback));
+        .route("/api/oauth/{provider}/callback", get(handler::oauth::oauth_callback))
+        .route("/api/invite/{token}/info", get(handler::workspace::invite_info));
 
     // ---- User-level routes (JWT only, no workspace required) ----
     let user_api = Router::<AppState>::new()
@@ -38,6 +39,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/workspace", post(handler::workspace::create))
         .route("/api/settings/admin", get(handler::settings::admin_settings))
         .route("/api/settings", put(handler::settings::update_settings))
+        .route("/api/invite/{token}/accept", post(handler::workspace::accept_invite))
         .layer(from_fn_with_state(state.clone(), jwt_auth_user_only));
 
     // ---- Protected management routes (JWT + workspace) ----
@@ -47,7 +49,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/workspace/members", get(handler::workspace::list_members))
         .route(
             "/api/workspace/members/{id}",
-            delete(handler::workspace::remove_member).put(handler::workspace::update_member_role),
+            delete(handler::workspace::remove_member),
+        )
+        .route(
+            "/api/workspace/members/{id}/promote",
+            post(handler::workspace::promote_member),
         )
         .route(
             "/api/workspace/invites",

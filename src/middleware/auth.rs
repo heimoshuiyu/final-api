@@ -23,6 +23,7 @@ pub struct TokenAuth {
 pub struct JwtClaims {
     pub sub: i64,
     pub username: String,
+    pub role: i16,
     pub exp: usize,
 }
 
@@ -30,7 +31,7 @@ pub struct JwtClaims {
 pub struct JwtAuth {
     pub user_id: i64,
     pub workspace_id: i64,
-    pub workspace_role: i16,
+    pub user_role: i16,
 }
 
 fn extract_api_key(headers: &HeaderMap) -> Option<String> {
@@ -117,7 +118,7 @@ pub async fn jwt_auth(
         })
         .ok_or_else(|| AppError::BadRequest("missing X-Workspace-Id header".into()))?;
 
-    let membership =
+    let _membership =
         crate::db::workspace::find_membership(&state.pool, workspace_id, user_id)
             .await?
             .ok_or_else(|| AppError::Forbidden("not a member of this workspace".into()))?;
@@ -125,7 +126,7 @@ pub async fn jwt_auth(
     let auth = JwtAuth {
         user_id,
         workspace_id,
-        workspace_role: membership.1,
+        user_role: token_data.claims.role,
     };
 
     request.extensions_mut().insert(auth);
@@ -146,18 +147,19 @@ pub async fn jwt_auth_user_only(
     let auth = JwtAuth {
         user_id: token_data.claims.sub,
         workspace_id: 0,
-        workspace_role: 0,
+        user_role: token_data.claims.role,
     };
 
     request.extensions_mut().insert(auth);
     Ok(next.run(request).await)
 }
 
-pub fn create_jwt(secret: &str, user_id: i64, username: &str) -> Result<String, AppError> {
+pub fn create_jwt(secret: &str, user_id: i64, username: &str, role: i16) -> Result<String, AppError> {
     let exp = (Utc::now() + Duration::days(7)).timestamp() as usize;
     let claims = JwtClaims {
         sub: user_id,
         username: username.into(),
+        role,
         exp,
     };
     let key = EncodingKey::from_secret(secret.as_bytes());
@@ -176,6 +178,19 @@ pub fn generate_api_key() -> String {
         })
         .collect();
     format!("sk-{key}")
+}
+
+pub fn generate_invite_token() -> String {
+    use rand::Rng;
+    const CHARSET: &[u8] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::rng();
+    (0..32)
+        .map(|_| {
+            let idx = rng.random_range(0..CHARSET.len());
+            CHARSET[idx] as char
+        })
+        .collect()
 }
 
 pub fn hash_password(password: &str) -> Result<String, AppError> {

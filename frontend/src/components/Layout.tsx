@@ -58,11 +58,13 @@ export function Layout({
   active,
   navigate,
   wsId,
+  userRole,
   children,
 }: {
   active: string
   navigate: (r: string) => void
   wsId: string
+  userRole: number
   children: ReactNode
 }) {
   const { theme, toggle } = useTheme()
@@ -99,8 +101,7 @@ export function Layout({
     }
   }
 
-  const currentWs = workspaces.find((w) => String(w.id) === wsId)
-  const isAdmin = currentWs?.role === 10
+  const isAdmin = userRole >= 10
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -130,20 +131,21 @@ export function Layout({
               {workspaces.map((ws) => (
                 <SelectItem key={ws.id} value={String(ws.id)}>
                   {ws.name}
-                  {ws.role === 10 && " (管理员)"}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCreateOpen(true)}
-            className="mt-1.5 w-full justify-start gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
-          >
-            <Plus className="size-3" />
-            新建工作区
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+              className="mt-1.5 w-full justify-start gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="size-3" />
+              新建工作区
+            </Button>
+          )}
         </div>
 
         {/* Create workspace dialog */}
@@ -158,7 +160,7 @@ export function Layout({
                 id="ws-name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="例如：生产环境"
+                placeholder="例如：研发部"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !creating) handleCreate()
                 }}

@@ -92,16 +92,16 @@ export function fetchMembers() {
   return api<WorkspaceMember[]>("/api/workspace/members")
 }
 
-export function updateMemberRole(userId: number, role: number) {
-  return api(`/api/workspace/members/${userId}`, { method: "PUT", body: JSON.stringify({ role }) })
-}
-
 export function removeMember(userId: number) {
   return api(`/api/workspace/members/${userId}`, { method: "DELETE" })
 }
 
-export function createInvite(username: string, role: number) {
-  return api("/api/workspace/invites", { method: "POST", body: JSON.stringify({ username, role }) })
+export function promoteMember(userId: number) {
+  return api(`/api/workspace/members/${userId}/promote`, { method: "POST" })
+}
+
+export function createInvite() {
+  return api<{ id: number; token: string; created_at: string }>("/api/workspace/invites", { method: "POST" })
 }
 
 export function fetchInvites() {
@@ -110,6 +110,14 @@ export function fetchInvites() {
 
 export function deleteInvite(id: number) {
   return api(`/api/workspace/invites/${id}`, { method: "DELETE" })
+}
+
+export function inviteInfo(token: string) {
+  return api<{ workspace_name: string; created_at: string }>(`/api/invite/${token}/info`)
+}
+
+export function acceptInvite(token: string) {
+  return api<{ workspace_id: number; already_member: boolean }>(`/api/invite/${token}/accept`, { method: "POST" })
 }
 
 export function fetchTokens() {
