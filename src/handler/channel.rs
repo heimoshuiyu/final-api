@@ -39,7 +39,7 @@ pub async fn update(
     Json(req): Json<db::channel::CreateChannel>,
 ) -> Result<Json<db::channel::ChannelRow>, AppError> {
     assert_admin(&auth)?;
-    let channel = db::channel::update(&state.pool, id, &req)
+    let channel = db::channel::update(&state.pool, id, auth.workspace_id, &req)
         .await?
         .ok_or_else(|| AppError::NotFound("channel not found".into()))?;
     Ok(Json(channel))
@@ -51,7 +51,7 @@ pub async fn delete(
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, AppError> {
     assert_admin(&auth)?;
-    let deleted = db::channel::delete(&state.pool, id).await?;
+    let deleted = db::channel::delete(&state.pool, id, auth.workspace_id).await?;
     if !deleted {
         return Err(AppError::NotFound("channel not found".into()));
     }

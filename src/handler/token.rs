@@ -64,6 +64,14 @@ pub async fn delete(
     axum::Extension(auth): axum::Extension<JwtAuth>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, AppError> {
+    let existing = db::token::find_by_id(&state.pool, id, auth.workspace_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("token not found".into()))?;
+
+    if auth.user_role < 10 && existing.user_id != auth.user_id {
+        return Err(AppError::Forbidden("not your token".into()));
+    }
+
     let deleted = db::token::delete(&state.pool, id, auth.workspace_id).await?;
     if !deleted {
         return Err(AppError::NotFound("token not found".into()));

@@ -162,6 +162,11 @@ pub async fn promote_member(
         return Err(AppError::BadRequest("cannot promote yourself".into()));
     }
 
+    let _membership =
+        crate::db::workspace::find_membership(&state.pool, auth.workspace_id, user_id)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("user is not a member of this workspace".into()))?;
+
     db::user::set_role(&state.pool, user_id, 10).await?;
 
     Ok(Json(serde_json::json!({ "success": true })))

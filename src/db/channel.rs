@@ -107,16 +107,18 @@ pub async fn create(pool: &sqlx::PgPool, workspace_id: i64, c: &CreateChannel) -
 pub async fn update(
     pool: &sqlx::PgPool,
     id: i64,
+    workspace_id: i64,
     c: &CreateChannel,
 ) -> Result<Option<ChannelRow>, sqlx::Error> {
     if c.api_key.is_empty() {
         sqlx::query_as::<_, ChannelRow>(
-            r#"UPDATE channels SET name = $2, endpoint_url = $3, auth_type = $4,
-               models = $5, priority = $6, weight = $7, model_mapping = $8, model_overrides = $9,
-               header_override = $10, body_override = $11, max_concurrency = $12, model_prices = $13
-               WHERE id = $1 RETURNING *"#,
+            r#"UPDATE channels SET name = $3, endpoint_url = $4, auth_type = $5,
+               models = $6, priority = $7, weight = $8, model_mapping = $9, model_overrides = $10,
+               header_override = $11, body_override = $12, max_concurrency = $13, model_prices = $14
+               WHERE id = $1 AND workspace_id = $2 RETURNING *"#,
         )
         .bind(id)
+        .bind(workspace_id)
         .bind(&c.name)
         .bind(&c.endpoint_url)
         .bind(c.auth_type.as_deref().unwrap_or("bearer"))
@@ -133,12 +135,13 @@ pub async fn update(
         .await
     } else {
         sqlx::query_as::<_, ChannelRow>(
-            r#"UPDATE channels SET name = $2, endpoint_url = $3, auth_type = $4, api_key = $5,
-               models = $6, priority = $7, weight = $8, model_mapping = $9, model_overrides = $10,
-               header_override = $11, body_override = $12, max_concurrency = $13, model_prices = $14
-               WHERE id = $1 RETURNING *"#,
+            r#"UPDATE channels SET name = $3, endpoint_url = $4, auth_type = $5, api_key = $6,
+               models = $7, priority = $8, weight = $9, model_mapping = $10, model_overrides = $11,
+               header_override = $12, body_override = $13, max_concurrency = $14, model_prices = $15
+               WHERE id = $1 AND workspace_id = $2 RETURNING *"#,
         )
         .bind(id)
+        .bind(workspace_id)
         .bind(&c.name)
         .bind(&c.endpoint_url)
         .bind(c.auth_type.as_deref().unwrap_or("bearer"))
@@ -157,9 +160,10 @@ pub async fn update(
     }
 }
 
-pub async fn delete(pool: &sqlx::PgPool, id: i64) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM channels WHERE id = $1")
+pub async fn delete(pool: &sqlx::PgPool, id: i64, workspace_id: i64) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM channels WHERE id = $1 AND workspace_id = $2")
         .bind(id)
+        .bind(workspace_id)
         .execute(pool)
         .await?;
     Ok(result.rows_affected() > 0)
