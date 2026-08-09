@@ -30,7 +30,9 @@ import {
   Loader2,
   AlertCircle,
   Pencil,
+  DollarSign,
 } from "lucide-react"
+import { PriceLookupDialog, fuzzyMatch } from "./PriceLookupDialog"
 
 interface FormatEntry {
   endpointUrl: string
@@ -78,6 +80,7 @@ export function Channels() {
   const [showPresetList, setShowPresetList] = useState(false)
   const [presets, setPresets] = useState<ProviderPreset[]>([])
   const [saving, setSaving] = useState(false)
+  const [priceLookupIndex, setPriceLookupIndex] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -96,13 +99,13 @@ export function Channels() {
   }, [])
 
   const filteredPresets = useMemo(() => {
-    const q = presetSearch.toLowerCase().trim()
+    const q = presetSearch.trim()
     if (!q) return presets
     return presets.filter(
       (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.id.toLowerCase().includes(q) ||
-        p.models.some((m) => m.id.toLowerCase().includes(q)),
+        fuzzyMatch(q, p.name) ||
+        fuzzyMatch(q, p.id) ||
+        p.models.some((m) => fuzzyMatch(q, m.id)),
     )
   }, [presetSearch, presets])
 
@@ -520,6 +523,7 @@ export function Channels() {
                     onAddFormat={() => addFormatEntry(i)}
                     onUpdateFormat={(fi, patch) => updateFormatEntry(i, fi, patch)}
                     onRemoveFormat={(fi) => removeFormatEntry(i, fi)}
+                    onPriceLookup={() => setPriceLookupIndex(i)}
                   />
                 ))}
               </div>
@@ -565,6 +569,22 @@ export function Channels() {
           ))}
         </div>
       )}
+
+      {priceLookupIndex != null && (
+        <PriceLookupDialog
+          open={priceLookupIndex != null}
+          onOpenChange={(v) => !v && setPriceLookupIndex(null)}
+          initialQuery={modelRows[priceLookupIndex]?.name || ""}
+          onSelect={(price) => {
+            updateModelRow(priceLookupIndex, {
+              priceInput: price.input != null ? String(price.input) : "",
+              priceOutput: price.output != null ? String(price.output) : "",
+              priceCached: price.cached != null ? String(price.cached) : "",
+              priceCacheCreation: price.cache_creation != null ? String(price.cache_creation) : "",
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -584,6 +604,7 @@ function ModelCard({
   onAddFormat,
   onUpdateFormat,
   onRemoveFormat,
+  onPriceLookup,
 }: {
   row: ModelRow
   expanded: boolean
@@ -599,6 +620,7 @@ function ModelCard({
   onAddFormat: () => void
   onUpdateFormat: (fi: number, patch: Partial<FormatEntry>) => void
   onRemoveFormat: (fi: number) => void
+  onPriceLookup: () => void
 }) {
   const overrideSummary = [
     ...(row.weight > 0 ? [`权重 ${row.weight}`] : []),
@@ -658,7 +680,18 @@ function ModelCard({
           </div>
 
           <div className="flex flex-col gap-1">
-            <Label className="text-[10px]">价格（USD / 1M tokens）</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-[10px]">价格（USD / 1M tokens）</Label>
+              <Button
+                variant="link"
+                size="xs"
+                className="h-auto gap-1 p-0 text-chart-3"
+                onClick={onPriceLookup}
+              >
+                <DollarSign className="size-3" />
+                查价
+              </Button>
+            </div>
             <div className="grid grid-cols-4 gap-1.5">
               <Input
                 type="number"

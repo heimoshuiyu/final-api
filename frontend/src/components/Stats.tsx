@@ -36,7 +36,6 @@ import {
   Activity,
   Coins,
   Zap,
-  Timer,
   TrendingUp,
   RefreshCw,
   DatabaseZap,
@@ -204,10 +203,10 @@ export function Stats({
     .slice(0, 8)
     .map((m) => ({ name: m.model, value: m.cost }))
 
-  const title = scope === "workspace" ? "工作区统计" : "我的统计"
+  const title = scope === "workspace" ? "工作区统计" : "统计"
   const desc = scope === "workspace"
-    ? "整个工作区的请求量、Token 用量和费用分析"
-    : "你的请求量、Token 用量和费用分析"
+    ? "工作区请求量、Token 用量和费用分析"
+    : "请求量、Token 用量和费用分析"
 
   return (
     <div className="animate-slide-up">
@@ -274,7 +273,7 @@ export function Stats({
       )}
 
       {/* Summary Cards */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="总请求"
           value={summary ? fmtCompact(summary.request_count) : "—"}
@@ -306,14 +305,6 @@ export function Stats({
           icon={Coins}
           color="text-chart-3"
           delay={180}
-        />
-        <StatCard
-          label="平均延迟"
-          value={summary ? fmtMs(summary.avg_duration_ms) : "—"}
-          sub=""
-          icon={Timer}
-          color="text-chart-4"
-          delay={240}
         />
       </div>
 
