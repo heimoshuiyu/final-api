@@ -53,6 +53,13 @@ export interface ModelOverrideEntry {
   [format: string]: FormatOverride | number | undefined
 }
 
+export interface ModelPrice {
+  input?: number
+  output?: number
+  cached?: number
+  cache_creation?: number
+}
+
 export interface Channel {
   id: number
   workspace_id: number
@@ -68,6 +75,7 @@ export interface Channel {
   header_override: Record<string, string>
   body_override: Record<string, unknown>
   max_concurrency: number
+  model_prices: Record<string, ModelPrice>
   created_at: string
   updated_at: string
 }
@@ -83,12 +91,14 @@ export interface LogEntry {
   status_code: number
   duration_ms: number
   session_id: string
+  sticky_id: string
   error_message: string | null
   prompt_tokens: number | null
   completion_tokens: number | null
   total_tokens: number | null
   cached_tokens: number | null
   cache_creation_tokens: number | null
+  cost: number | null
   created_at: string
 }
 
@@ -122,6 +132,7 @@ export interface CreateChannelRequest {
   header_override?: Record<string, string>
   body_override?: Record<string, unknown>
   max_concurrency?: number
+  model_prices?: Record<string, ModelPrice>
 }
 
 export interface ProviderPresetModel {
@@ -129,6 +140,12 @@ export interface ProviderPresetModel {
   override?: {
     endpoint_url: string
     auth_type: string
+  }
+  cost?: {
+    input?: number
+    output?: number
+    cache_read?: number
+    cache_write?: number
   }
 }
 
@@ -180,6 +197,7 @@ export interface InspectEndEvent {
   duration_ms: number
   resp_headers: Record<string, string>
   usage?: TokenUsage | null
+  cost?: number | null
 }
 
 export type InspectEvent = InspectStartEvent | InspectChunkEvent | InspectEndEvent
@@ -202,4 +220,5 @@ export interface RequestCard {
   status?: number
   durationMs?: number
   usage?: TokenUsage | null
+  cost?: number | null
 }

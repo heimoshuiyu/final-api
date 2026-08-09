@@ -26,11 +26,25 @@ pub struct ModelOverrideOut {
     pub auth_type: String,
 }
 
+#[derive(Serialize, Default)]
+pub struct ModelCost {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write: Option<f64>,
+}
+
 #[derive(Serialize)]
 pub struct PresetModel {
     pub id: String,
     #[serde(rename = "override", skip_serializing_if = "Option::is_none")]
     pub override_config: Option<ModelOverrideOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<ModelCost>,
 }
 
 #[derive(Serialize)]
@@ -125,6 +139,16 @@ pub async fn list(_state: State<AppState>) -> Result<impl IntoResponse, AppError
                                 detect_format(model_npm)
                             };
 
+                            let cost = minfo.get("cost").map(|c| {
+                                let g = |k: &str| c.get(k).and_then(|v| v.as_f64());
+                                ModelCost {
+                                    input: g("input"),
+                                    output: g("output"),
+                                    cache_read: g("cache_read"),
+                                    cache_write: g("cache_write"),
+                                }
+                            });
+
                             if model_fmt != fmt {
                                 let m_endpoint = if api_base.is_empty() {
                                     String::new()
@@ -142,11 +166,13 @@ pub async fn list(_state: State<AppState>) -> Result<impl IntoResponse, AppError
                                         endpoint_url: m_endpoint,
                                         auth_type: m_auth.to_string(),
                                     }),
+                                    cost,
                                 }
                             } else {
                                 PresetModel {
                                     id: mid.clone(),
                                     override_config: None,
+                                    cost,
                                 }
                             }
                         })

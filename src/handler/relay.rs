@@ -91,7 +91,9 @@ pub async fn handler(
     }
 
     // Select channel: sticky first (with concurrency check), then load-balanced
-    let sticky_key = format!("{model}/{sticky_id}");
+    let incoming_fmt = endpoint_format(&path);
+    let fmt_key = incoming_fmt.route();
+    let sticky_key = format!("{model}/{fmt_key}/{sticky_id}");
     let sticky_sid = db::sticky::get(&state.pool, &sticky_key).await?;
 
     let selection = if let Some(ch) = sticky_sid
@@ -162,8 +164,6 @@ pub async fn handler(
     };
 
     // Resolve per-model per-format override
-    let incoming_fmt = endpoint_format(&path);
-    let fmt_key = incoming_fmt.route();
     let fmt_override = channel
         .model_overrides
         .get(model.as_str())
@@ -250,7 +250,7 @@ pub async fn handler(
             }
 
             let duration_ms = start.elapsed().as_millis() as i32;
-            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &session_id, status_code).await?;
+            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &session_id, &sticky_id, status_code).await?;
 
             let mut response_builder = Response::builder().status(status);
             for key in resp.headers().keys() {
@@ -277,6 +277,8 @@ pub async fn handler(
                 is_stream,
                 state.pool.clone(),
                 log_id,
+                channel.model_prices.clone(),
+                model.clone(),
                 permit,
             );
 
@@ -284,13 +286,14 @@ pub async fn handler(
         }
         Err(e) => {
             let duration_ms = start.elapsed().as_millis() as i32;
-            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &session_id, 0).await;
+            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &session_id, &sticky_id, 0).await;
             let _ = state.inspect_tx.send(InspectEvent::End {
                 req_id,
                 status: 502,
                 duration_ms: duration_ms as u64,
                 resp_headers: serde_json::json!({}),
                 usage: None,
+                cost: None,
             });
             Err(AppError::BadGateway(format!("upstream error: {e}")))
         }
@@ -306,6 +309,7 @@ async fn log_request(
     status_code: i32,
     duration_ms: i32,
     session_id: &str,
+    sticky_id: &str,
     error_status: u16,
 ) -> Result<i64, sqlx::Error> {
     let error_message = if error_status != 0 && error_status != 200 {
@@ -326,6 +330,7 @@ async fn log_request(
             status_code,
             duration_ms,
             session_id,
+            sticky_id,
             error_message: error_message.as_deref(),
         },
     )

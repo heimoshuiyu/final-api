@@ -107,7 +107,7 @@ export function Logs() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/50">
-                  {["状态", "模型", "渠道", "流式", "Token", "缓存", "耗时", "会话", "时间"].map((h) => (
+                  {["状态", "模型", "渠道", "流式", "Token", "缓存", "耗时", "费用", "会话", "时间"].map((h) => (
                     <TableHead key={h} className="text-[10px] uppercase tracking-wider">
                       {h}
                     </TableHead>
@@ -160,8 +160,15 @@ export function Logs() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{log.duration_ms}ms</TableCell>
-                    <TableCell className="max-w-[120px] truncate text-muted-foreground">
-                      {log.session_id || "—"}
+                    <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                      {log.cost != null && log.cost > 0 ? (
+                        <span className="text-chart-2">${log.cost.toFixed(4)}</span>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[120px] truncate text-muted-foreground" title={log.sticky_id}>
+                      {log.sticky_id || "—"}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {new Date(log.created_at).toLocaleString("zh-CN", {

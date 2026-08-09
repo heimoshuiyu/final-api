@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { createChannel, deleteChannel, fetchChannels, fetchPresets, updateChannel } from "../api"
-import type { Channel, CreateChannelRequest, FormatOverride, ModelOverrideEntry, ProviderPreset } from "../types"
+import type { Channel, CreateChannelRequest, FormatOverride, ModelOverrideEntry, ModelPrice, ProviderPreset } from "../types"
 import { cn } from "@/lib/utils"
 import {
   Card,
@@ -33,7 +33,6 @@ import {
 } from "lucide-react"
 
 interface FormatEntry {
-  format: string
   endpointUrl: string
   authType: string
 }
@@ -43,16 +42,10 @@ interface ModelRow {
   mappedTo: string
   weight: number
   formats: FormatEntry[]
-}
-
-const FORMAT_OPTIONS: { value: string; label: string }[] = [
-  { value: "chat/completions", label: "Chat" },
-  { value: "messages", label: "Anthropic" },
-  { value: "responses", label: "Responses" },
-]
-
-function formatLabel(fmt: string): string {
-  return FORMAT_OPTIONS.find((f) => f.value === fmt)?.label ?? fmt
+  priceInput: string
+  priceOutput: string
+  priceCached: string
+  priceCacheCreation: string
 }
 
 function formatFromUrl(url: string): string {
@@ -155,6 +148,7 @@ export function Channels() {
             fmtEntries[k] = v as FormatOverride
           }
         }
+        const prices = ch.model_prices?.[m] || {}
         return {
           name: m,
           mappedTo: mapping[m] || "",
@@ -164,6 +158,10 @@ export function Channels() {
             endpointUrl: ov.endpoint_url || "",
             authType: ov.auth_type || "inherit",
           })),
+          priceInput: prices.input != null ? String(prices.input) : "",
+          priceOutput: prices.output != null ? String(prices.output) : "",
+          priceCached: prices.cached != null ? String(prices.cached) : "",
+          priceCacheCreation: prices.cache_creation != null ? String(prices.cache_creation) : "",
         }
       }),
     )
@@ -179,12 +177,21 @@ export function Channels() {
         const formats: FormatEntry[] = []
         if (m.override?.endpoint_url || m.override?.auth_type) {
           formats.push({
-            format: formatFromUrl(m.override?.endpoint_url || preset.endpoint_url),
             endpointUrl: m.override?.endpoint_url || "",
             authType: m.override?.auth_type || "inherit",
           })
         }
-        return { name: m.id, mappedTo: "", weight: 0, formats }
+        const c = m.cost
+        return {
+          name: m.id,
+          mappedTo: "",
+          weight: 0,
+          formats,
+          priceInput: c?.input != null ? String(c.input) : "",
+          priceOutput: c?.output != null ? String(c.output) : "",
+          priceCached: c?.cache_read != null ? String(c.cache_read) : "",
+          priceCacheCreation: c?.cache_write != null ? String(c.cache_write) : "",
+        }
       }),
     )
     setShowPresetList(false)
@@ -192,7 +199,7 @@ export function Channels() {
   }
 
   const addModelRow = () => {
-    setModelRows((prev) => [...prev, { name: "", mappedTo: "", weight: 0, formats: [] }])
+    setModelRows((prev) => [...prev, { name: "", mappedTo: "", weight: 0, formats: [], priceInput: "", priceOutput: "", priceCached: "", priceCacheCreation: "" }])
   }
 
   const updateModelRow = (index: number, patch: Partial<ModelRow>) => {
@@ -212,11 +219,9 @@ export function Channels() {
     setModelRows((prev) =>
       prev.map((r, i) => {
         if (i !== modelIndex) return r
-        const usedFormats = new Set(r.formats.map((f) => f.format))
-        const nextFmt = FORMAT_OPTIONS.find((f) => !usedFormats.has(f.value))
         return {
           ...r,
-          formats: [...r.formats, { format: nextFmt?.value || "chat/completions", endpointUrl: "", authType: "inherit" }],
+          formats: [...r.formats, { endpointUrl: "", authType: "inherit" }],
         }
       }),
     )
@@ -261,21 +266,34 @@ export function Channels() {
       const models = validRows.map((r) => r.name.trim())
       const model_mapping: Record<string, string> = {}
       const model_overrides: Record<string, ModelOverrideEntry> = {}
+      const model_prices: Record<string, ModelPrice> = {}
       for (const row of validRows) {
         const m = row.name.trim()
         if (row.mappedTo.trim()) model_mapping[m] = row.mappedTo.trim()
         const entry: ModelOverrideEntry = {}
         if (row.weight > 0) entry.weight = row.weight
         for (const fe of row.formats) {
-          if (fe.endpointUrl.trim() || (fe.authType && fe.authType !== "inherit")) {
+          if (fe.endpointUrl.trim()) {
+            const fmtKey = formatFromUrl(fe.endpointUrl.trim())
             const ov: FormatOverride = {}
-            if (fe.endpointUrl.trim()) ov.endpoint_url = fe.endpointUrl.trim()
+            ov.endpoint_url = fe.endpointUrl.trim()
             const at = fe.authType === "inherit" ? "" : fe.authType
             if (at) ov.auth_type = at
-            entry[fe.format] = ov
+            entry[fmtKey] = ov
           }
         }
         if (Object.keys(entry).length > 0) model_overrides[m] = entry
+
+        const price: ModelPrice = {}
+        const pi = parseFloat(row.priceInput)
+        const po = parseFloat(row.priceOutput)
+        const pc = parseFloat(row.priceCached)
+        const pcc = parseFloat(row.priceCacheCreation)
+        if (!isNaN(pi) && pi >= 0) price.input = pi
+        if (!isNaN(po) && po >= 0) price.output = po
+        if (!isNaN(pc) && pc >= 0) price.cached = pc
+        if (!isNaN(pcc) && pcc >= 0) price.cache_creation = pcc
+        if (Object.keys(price).length > 0) model_prices[m] = price
       }
 
       const payload: CreateChannelRequest = {
@@ -290,6 +308,7 @@ export function Channels() {
         model_overrides,
         max_concurrency: maxConcurrency,
       }
+      if (Object.keys(model_prices).length > 0) payload.model_prices = model_prices
 
       if (editingId) {
         await updateChannel(editingId, payload)
@@ -494,6 +513,10 @@ export function Channels() {
                     onUpdateName={(v) => updateModelRow(i, { name: v })}
                     onUpdateMappedTo={(v) => updateModelRow(i, { mappedTo: v })}
                     onUpdateWeight={(v) => updateModelRow(i, { weight: v })}
+                    onUpdatePriceInput={(v) => updateModelRow(i, { priceInput: v })}
+                    onUpdatePriceOutput={(v) => updateModelRow(i, { priceOutput: v })}
+                    onUpdatePriceCached={(v) => updateModelRow(i, { priceCached: v })}
+                    onUpdatePriceCacheCreation={(v) => updateModelRow(i, { priceCacheCreation: v })}
                     onAddFormat={() => addFormatEntry(i)}
                     onUpdateFormat={(fi, patch) => updateFormatEntry(i, fi, patch)}
                     onRemoveFormat={(fi) => removeFormatEntry(i, fi)}
@@ -554,6 +577,10 @@ function ModelCard({
   onUpdateName,
   onUpdateMappedTo,
   onUpdateWeight,
+  onUpdatePriceInput,
+  onUpdatePriceOutput,
+  onUpdatePriceCached,
+  onUpdatePriceCacheCreation,
   onAddFormat,
   onUpdateFormat,
   onRemoveFormat,
@@ -565,6 +592,10 @@ function ModelCard({
   onUpdateName: (v: string) => void
   onUpdateMappedTo: (v: string) => void
   onUpdateWeight: (v: number) => void
+  onUpdatePriceInput: (v: string) => void
+  onUpdatePriceOutput: (v: string) => void
+  onUpdatePriceCached: (v: string) => void
+  onUpdatePriceCacheCreation: (v: string) => void
   onAddFormat: () => void
   onUpdateFormat: (fi: number, patch: Partial<FormatEntry>) => void
   onRemoveFormat: (fi: number) => void
@@ -572,7 +603,8 @@ function ModelCard({
   const overrideSummary = [
     ...(row.weight > 0 ? [`权重 ${row.weight}`] : []),
     ...(row.mappedTo.trim() ? [`→ ${row.mappedTo}`] : []),
-    ...row.formats.map((f) => formatLabel(f.format)),
+    ...row.formats.map((f) => f.endpointUrl.trim() ? formatFromUrl(f.endpointUrl.trim()) : null).filter(Boolean),
+    ...((row.priceInput || row.priceOutput) ? [`$${row.priceInput || "0"}/${row.priceOutput || "0"}`] : []),
   ]
 
   return (
@@ -625,23 +657,49 @@ function ModelCard({
             </div>
           </div>
 
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px]">价格（USD / 1M tokens）</Label>
+            <div className="grid grid-cols-4 gap-1.5">
+              <Input
+                type="number"
+                step="0.01"
+                value={row.priceInput}
+                onChange={(e) => onUpdatePriceInput(e.target.value)}
+                placeholder="输入"
+                className="h-8 font-mono text-xs"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                value={row.priceOutput}
+                onChange={(e) => onUpdatePriceOutput(e.target.value)}
+                placeholder="输出"
+                className="h-8 font-mono text-xs"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                value={row.priceCached}
+                onChange={(e) => onUpdatePriceCached(e.target.value)}
+                placeholder="缓存读"
+                className="h-8 font-mono text-xs"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                value={row.priceCacheCreation}
+                onChange={(e) => onUpdatePriceCacheCreation(e.target.value)}
+                placeholder="缓存写"
+                className="h-8 font-mono text-xs"
+              />
+            </div>
+          </div>
+
           {row.formats.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <Label className="text-[10px]">格式覆盖</Label>
+              <Label className="text-[10px]">端点配置</Label>
               {row.formats.map((f, fi) => (
-                <div key={fi} className="grid grid-cols-[7rem_1fr_7rem_auto] items-center gap-1.5">
-                  <Select value={f.format} onValueChange={(v) => onUpdateFormat(fi, { format: v })}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FORMAT_OPTIONS.map((fo) => (
-                        <SelectItem key={fo.value} value={fo.value}>
-                          {fo.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div key={fi} className="grid grid-cols-[1fr_7rem_auto] items-center gap-1.5">
                   <Input
                     value={f.endpointUrl}
                     onChange={(e) => onUpdateFormat(fi, { endpointUrl: e.target.value })}
@@ -670,7 +728,7 @@ function ModelCard({
           )}
 
           <Button variant="link" className="h-auto p-0 text-chart-2" onClick={onAddFormat}>
-            + 添加格式覆盖
+            + 添加端点配置
           </Button>
         </div>
       )}
@@ -691,6 +749,7 @@ function ChannelCard({
   const overrides = channel.model_overrides || {}
   const mappingCount = Object.values(mapping).filter(Boolean).length
   const overrideCount = Object.values(overrides).filter((fmts) => Object.keys(fmts).length > 0).length
+  const priceCount = Object.keys(channel.model_prices || {}).length
 
   return (
     <Card className="glass-panel glow-border card-hover border-0 px-5 py-4">
@@ -742,7 +801,7 @@ function ChannelCard({
                 {modelWeight !== undefined && <span className="text-chart-2"> ⚖{modelWeight}</span>}
                 {fmtKeys.map((fk) => (
                   <span key={fk} className="text-chart-3" title={(modelOv[fk] as FormatOverride)?.endpoint_url}>
-                    {" "}⚡{formatLabel(fk)}
+                    {" "}⚡{fk}
                   </span>
                 ))}
               </Badge>
@@ -757,6 +816,7 @@ function ChannelCard({
         {channel.max_concurrency > 0 && <span>并发 ≤ {channel.max_concurrency}</span>}
         {mappingCount > 0 && <span>{mappingCount} 条映射</span>}
         {overrideCount > 0 && <span className="text-chart-3">{overrideCount} 个覆盖</span>}
+        {priceCount > 0 && <span className="text-chart-2">{priceCount} 个价格</span>}
       </div>
     </Card>
   )

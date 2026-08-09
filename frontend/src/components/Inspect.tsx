@@ -120,6 +120,7 @@ export function Inspect({ scope = "user" }: { scope?: "user" | "workspace" }) {
                 durationMs: event.duration_ms,
                 respHeaders: event.resp_headers || {},
                 usage: event.usage ?? null,
+                cost: event.cost ?? null,
               }
             : r,
         ),
@@ -391,6 +392,9 @@ function RequestCardView({
                     <span className="text-chart-3"> +{card.usage.cache_creation_tokens}</span>
                   )}
                 </span>
+              )}
+              {card.cost != null && card.cost > 0 && (
+                <span className="text-chart-2">${card.cost.toFixed(4)}</span>
               )}
             </span>
           )}

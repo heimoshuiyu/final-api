@@ -20,6 +20,7 @@ pub struct ChannelRow {
     pub header_override: serde_json::Value,
     pub body_override: serde_json::Value,
     pub max_concurrency: i32,
+    pub model_prices: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -83,13 +84,14 @@ pub struct CreateChannel {
     pub header_override: Option<serde_json::Value>,
     pub body_override: Option<serde_json::Value>,
     pub max_concurrency: Option<i32>,
+    pub model_prices: Option<serde_json::Value>,
 }
 
 pub async fn create(pool: &sqlx::PgPool, workspace_id: i64, c: &CreateChannel) -> Result<ChannelRow, sqlx::Error> {
     sqlx::query_as::<_, ChannelRow>(
         r#"INSERT INTO channels (workspace_id, name, endpoint_url, auth_type, api_key, models, priority, weight,
-           model_mapping, model_overrides, header_override, body_override, max_concurrency)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *"#,
+           model_mapping, model_overrides, header_override, body_override, max_concurrency, model_prices)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *"#,
     )
     .bind(workspace_id)
     .bind(&c.name)
@@ -104,6 +106,7 @@ pub async fn create(pool: &sqlx::PgPool, workspace_id: i64, c: &CreateChannel) -
     .bind(c.header_override.clone().unwrap_or(serde_json::json!({})))
     .bind(c.body_override.clone().unwrap_or(serde_json::json!({})))
     .bind(c.max_concurrency.unwrap_or(0))
+    .bind(c.model_prices.clone().unwrap_or(serde_json::json!({})))
     .fetch_one(pool)
     .await
 }
@@ -113,27 +116,52 @@ pub async fn update(
     id: i64,
     c: &CreateChannel,
 ) -> Result<Option<ChannelRow>, sqlx::Error> {
-    sqlx::query_as::<_, ChannelRow>(
-        r#"UPDATE channels SET name = $2, endpoint_url = $3, auth_type = $4, api_key = $5,
-           models = $6, priority = $7, weight = $8, model_mapping = $9, model_overrides = $10,
-           header_override = $11, body_override = $12, max_concurrency = $13
-           WHERE id = $1 RETURNING *"#,
-    )
-    .bind(id)
-    .bind(&c.name)
-    .bind(&c.endpoint_url)
-    .bind(c.auth_type.as_deref().unwrap_or("bearer"))
-    .bind(&c.api_key)
-    .bind(&c.models)
-    .bind(c.priority.unwrap_or(0))
-    .bind(c.weight.unwrap_or(1))
-    .bind(c.model_mapping.clone().unwrap_or(serde_json::json!({})))
-    .bind(c.model_overrides.clone().unwrap_or(serde_json::json!({})))
-    .bind(c.header_override.clone().unwrap_or(serde_json::json!({})))
-    .bind(c.body_override.clone().unwrap_or(serde_json::json!({})))
-    .bind(c.max_concurrency.unwrap_or(0))
-    .fetch_optional(pool)
-    .await
+    if c.api_key.is_empty() {
+        sqlx::query_as::<_, ChannelRow>(
+            r#"UPDATE channels SET name = $2, endpoint_url = $3, auth_type = $4,
+               models = $5, priority = $6, weight = $7, model_mapping = $8, model_overrides = $9,
+               header_override = $10, body_override = $11, max_concurrency = $12, model_prices = $13
+               WHERE id = $1 RETURNING *"#,
+        )
+        .bind(id)
+        .bind(&c.name)
+        .bind(&c.endpoint_url)
+        .bind(c.auth_type.as_deref().unwrap_or("bearer"))
+        .bind(&c.models)
+        .bind(c.priority.unwrap_or(0))
+        .bind(c.weight.unwrap_or(1))
+        .bind(c.model_mapping.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.model_overrides.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.header_override.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.body_override.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.max_concurrency.unwrap_or(0))
+        .bind(c.model_prices.clone().unwrap_or(serde_json::json!({})))
+        .fetch_optional(pool)
+        .await
+    } else {
+        sqlx::query_as::<_, ChannelRow>(
+            r#"UPDATE channels SET name = $2, endpoint_url = $3, auth_type = $4, api_key = $5,
+               models = $6, priority = $7, weight = $8, model_mapping = $9, model_overrides = $10,
+               header_override = $11, body_override = $12, max_concurrency = $13, model_prices = $14
+               WHERE id = $1 RETURNING *"#,
+        )
+        .bind(id)
+        .bind(&c.name)
+        .bind(&c.endpoint_url)
+        .bind(c.auth_type.as_deref().unwrap_or("bearer"))
+        .bind(&c.api_key)
+        .bind(&c.models)
+        .bind(c.priority.unwrap_or(0))
+        .bind(c.weight.unwrap_or(1))
+        .bind(c.model_mapping.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.model_overrides.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.header_override.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.body_override.clone().unwrap_or(serde_json::json!({})))
+        .bind(c.max_concurrency.unwrap_or(0))
+        .bind(c.model_prices.clone().unwrap_or(serde_json::json!({})))
+        .fetch_optional(pool)
+        .await
+    }
 }
 
 pub async fn delete(pool: &sqlx::PgPool, id: i64) -> Result<bool, sqlx::Error> {

@@ -12,8 +12,7 @@ use tokio::sync::broadcast;
 use crate::service::concurrency::ConcurrencyPermit;
 use crate::service::usage::{UsageData, UsageExtractor, UsageFormat};
 
-fn headers_to_json(headers: &HeaderMap) -> serde_json::Value {
-    let mut map = serde_json::Map::new();
+fn headers_to_json(headers: &HeaderMap) -> serde_json::Value {    let mut map = serde_json::Map::new();
     for (key, value) in headers.iter() {
         let k = key.as_str().to_string();
         let v = value.to_str().unwrap_or("<binary>").to_string();
@@ -64,6 +63,8 @@ pub enum InspectEvent {
         resp_headers: serde_json::Value,
         #[serde(skip_serializing_if = "Option::is_none")]
         usage: Option<UsageData>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cost: Option<f64>,
     },
 }
 
@@ -77,6 +78,31 @@ pub fn header_map_to_json(headers: &HeaderMap) -> serde_json::Value {
     headers_to_json(headers)
 }
 
+fn calculate_cost(usage: &UsageData, model_prices: &serde_json::Value, model: &str) -> f64 {
+    let Some(price) = model_prices.get(model) else {
+        return 0.0;
+    };
+    let get = |key: &str, default: f64| -> f64 {
+        price.get(key).and_then(|v| v.as_f64()).unwrap_or(default)
+    };
+    let input_price = get("input", 0.0);
+    let output_price = get("output", 0.0);
+    let cached_price = get("cached", input_price);
+    let cache_creation_price = get("cache_creation", input_price);
+
+    let prompt = usage.prompt_tokens.unwrap_or(0) as f64;
+    let completion = usage.completion_tokens.unwrap_or(0) as f64;
+    let cached = usage.cached_tokens.unwrap_or(0) as f64;
+    let cache_create = usage.cache_creation_tokens.unwrap_or(0) as f64;
+    let billable_input = (prompt - cached - cache_create).max(0.0);
+
+    (billable_input * input_price
+        + cached * cached_price
+        + cache_create * cache_creation_price
+        + completion * output_price)
+        / 1_000_000.0
+}
+
 pub struct InspectStream<S> {
     inner: S,
     tx: InspectTx,
@@ -87,6 +113,8 @@ pub struct InspectStream<S> {
     usage_extractor: UsageExtractor,
     pool: Option<sqlx::PgPool>,
     log_id: Option<i64>,
+    model_prices: serde_json::Value,
+    model: String,
     _permit: Option<ConcurrencyPermit>,
 }
 
@@ -102,6 +130,8 @@ impl<S> InspectStream<S> {
         is_stream: bool,
         pool: sqlx::PgPool,
         log_id: i64,
+        model_prices: serde_json::Value,
+        model: String,
         permit: Option<ConcurrencyPermit>,
     ) -> Self {
         Self {
@@ -114,6 +144,8 @@ impl<S> InspectStream<S> {
             usage_extractor: UsageExtractor::new(usage_format, is_stream),
             pool: Some(pool),
             log_id: Some(log_id),
+            model_prices,
+            model,
             _permit: permit,
         }
     }
@@ -139,12 +171,16 @@ where
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
             Poll::Ready(None) => {
                 let usage = self.usage_extractor.finalize();
+                let cost = calculate_cost(&usage, &self.model_prices, &self.model);
 
                 if let (Some(pool), Some(log_id)) = (&self.pool, self.log_id) {
                     if !usage.is_empty() {
                         let pool = pool.clone();
                         let u = usage.clone();
+                        let prices = self.model_prices.clone();
+                        let model = self.model.clone();
                         tokio::spawn(async move {
+                            let c = calculate_cost(&u, &prices, &model);
                             let _ = crate::db::log::update_usage(
                                 &pool,
                                 log_id,
@@ -153,6 +189,7 @@ where
                                 u.total_tokens,
                                 u.cached_tokens,
                                 u.cache_creation_tokens,
+                                Some(c),
                             )
                             .await;
                         });
@@ -165,6 +202,7 @@ where
                     duration_ms: self.start.elapsed().as_millis() as u64,
                     resp_headers: self.resp_headers.clone(),
                     usage: if usage.is_empty() { None } else { Some(usage) },
+                    cost: if cost > 0.0 { Some(cost) } else { None },
                 });
                 Poll::Ready(None)
             }
