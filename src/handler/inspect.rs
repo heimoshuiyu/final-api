@@ -16,6 +16,7 @@ pub struct InspectQuery {
     token_ids: Option<String>,
     models: Option<String>,
     channel_ids: Option<String>,
+    scope: Option<String>,
 }
 
 struct InspectFilter {
@@ -42,6 +43,15 @@ pub async fn stream(
     Query(query): Query<InspectQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, std::io::Error>>>, AppError> {
     let workspace_id = auth.workspace_id;
+    let user_id = auth.user_id;
+    let is_admin = auth.workspace_role >= 10;
+    let scope_workspace = query.scope.as_deref() == Some("workspace");
+
+    if scope_workspace && !is_admin {
+        return Err(AppError::Forbidden(
+            "workspace scope requires admin".into(),
+        ));
+    }
     let filter = Arc::new(InspectFilter {
         token_ids: parse_ids(&query.token_ids),
         models: parse_set(&query.models),
@@ -66,12 +76,16 @@ pub async fn stream(
                                 InspectEvent::Start {
                                     req_id,
                                     workspace_id: ws_id,
+                                    user_id: evt_user_id,
                                     token_id,
                                     model,
                                     channel_id,
                                     ..
                                 } => {
                                     if *ws_id != workspace_id {
+                                        continue;
+                                    }
+                                    if !scope_workspace && *evt_user_id != user_id {
                                         continue;
                                     }
                                     let ok = (filter.token_ids.is_empty()

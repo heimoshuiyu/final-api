@@ -38,10 +38,14 @@ import { fetchWorkspaces, createWorkspace } from "../api"
 const NAV_ITEMS = [
   { path: "/", label: "概览", icon: LayoutDashboard },
   { path: "/tokens", label: "令牌", icon: KeyRound },
-  { path: "/channels", label: "渠道", icon: Network },
-  { path: "/members", label: "成员", icon: Users },
   { path: "/logs", label: "请求", icon: ScrollText },
   { path: "/inspect", label: "实时", icon: Activity },
+] as const
+
+const ADMIN_NAV = [
+  { path: "/channels", label: "渠道", icon: Network },
+  { path: "/members", label: "成员", icon: Users },
+  { path: "/monitor", label: "工作区监控", icon: Activity },
 ] as const
 
 export function Layout({
@@ -91,12 +95,6 @@ export function Layout({
 
   const currentWs = workspaces.find((w) => String(w.id) === wsId)
   const isAdmin = currentWs?.role === 10
-
-  const visibleNav = NAV_ITEMS.filter((item) => {
-    if (item.path === "/channels" && !isAdmin) return false
-    if (item.path === "/members" && !isAdmin) return false
-    return true
-  })
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -179,7 +177,7 @@ export function Layout({
 
         {/* Nav */}
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {visibleNav.map((item) => {
+          {NAV_ITEMS.map((item) => {
             const isActive = active === item.path
             const Icon = item.icon
             return (
@@ -198,6 +196,33 @@ export function Layout({
               </button>
             )
           })}
+
+          {isAdmin && (
+            <>
+              <div className="px-3 pt-4 pb-1.5 text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground/60">
+                管理
+              </div>
+              {ADMIN_NAV.map((item) => {
+                const isActive = active === item.path
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </>
+          )}
         </nav>
 
         {/* Status + controls */}

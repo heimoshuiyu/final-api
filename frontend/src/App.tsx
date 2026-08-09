@@ -99,7 +99,9 @@ export default function App() {
             case page.startsWith("/logs"):
               return <Logs />
             case page.startsWith("/inspect"):
-              return <Inspect />
+              return <Inspect scope="user" />
+            case page.startsWith("/monitor"):
+              return <Inspect scope="workspace" />
             default:
               return <Dashboard navigate={navigate} />
           }

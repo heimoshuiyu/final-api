@@ -50,7 +50,7 @@ interface FilterState {
   channelIds: Set<number>
 }
 
-export function Inspect() {
+export function Inspect({ scope = "user" }: { scope?: "user" | "workspace" }) {
   const [requests, setRequests] = useState<RequestCard[]>([])
   const [paused, setPaused] = useState(false)
   const [connState, setConnState] = useState<"connecting" | "live" | "reconnecting">("connecting")
@@ -136,6 +136,7 @@ export function Inspect() {
       setConnState("connecting")
 
       const params = new URLSearchParams()
+      if (scope === "workspace") params.set("scope", "workspace")
       if (filters.tokenIds.size) params.set("token_ids", [...filters.tokenIds].join(","))
       if (filters.models.size) params.set("models", [...filters.models].join(","))
       if (filters.channelIds.size) params.set("channel_ids", [...filters.channelIds].join(","))
@@ -199,7 +200,7 @@ export function Inspect() {
       aborted = true
       clearTimeout(retryTimer)
     }
-  }, [filters, handleEvent])
+  }, [filters, handleEvent, scope])
 
   const toggleExpand = (reqId: string) => {
     setExpandedIds((prev) => {
@@ -224,8 +225,12 @@ export function Inspect() {
     <div className="animate-slide-up">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">实时监控</h1>
-          <p className="mt-1 text-sm text-muted-foreground">实时查看请求体与流式响应。</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {scope === "workspace" ? "工作区监控" : "实时监控"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {scope === "workspace" ? "监控整个工作区的请求。" : "实时查看你的请求体与流式响应。"}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant={paused ? "default" : "outline"} onClick={() => setPaused((p) => !p)}>
