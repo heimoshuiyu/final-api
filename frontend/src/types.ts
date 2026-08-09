@@ -5,6 +5,29 @@ export interface User {
   created_at?: string
 }
 
+export interface PublicSettings {
+  registration_enabled: boolean
+  oauth_providers: OAuthProviderInfo[]
+}
+
+export interface OAuthProviderInfo {
+  provider: string
+  name: string
+  enabled: boolean
+}
+
+export interface AdminSettings {
+  registration_enabled: boolean
+  oauth_providers: OAuthProviderAdmin[]
+}
+
+export interface OAuthProviderAdmin {
+  provider: string
+  name: string
+  enabled: boolean
+  config: Record<string, string>
+}
+
 export interface Workspace {
   id: number
   name: string

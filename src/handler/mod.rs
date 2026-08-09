@@ -1,8 +1,10 @@
 pub mod channel;
 pub mod inspect;
 pub mod log;
+pub mod oauth;
 pub mod preset;
 pub mod relay;
+pub mod settings;
 pub mod stats;
 pub mod token;
 pub mod user;

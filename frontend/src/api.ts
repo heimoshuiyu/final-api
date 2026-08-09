@@ -11,6 +11,8 @@ import type {
   Workspace,
   WorkspaceInvite,
   WorkspaceMember,
+  AdminSettings,
+  PublicSettings,
 } from "./types"
 
 const BASE = ""
@@ -35,7 +37,7 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
     "Content-Type": "application/json",
     ...((opts.headers as Record<string, string>) || {}),
   }
-  const isPublic = path === "/api/user/login" || path === "/api/user/register" || path.startsWith("/api/presets");
+  const isPublic = path === "/api/user/login" || path === "/api/user/register" || path.startsWith("/api/presets") || path === "/api/settings";
   if (token) headers["Authorization"] = `Bearer ${token}`
   if (wsId && !isPublic) {
     headers["X-Workspace-Id"] = wsId
@@ -162,4 +164,19 @@ export function fetchStats(params?: { scope?: string; user_id?: number; range?: 
   }
   const s = qs.toString()
   return api<StatsResponse>(`/api/stats${s ? "?" + s : ""}`)
+}
+
+export function fetchPublicSettings() {
+  return api<PublicSettings>("/api/settings")
+}
+
+export function fetchAdminSettings() {
+  return api<AdminSettings>("/api/settings/admin")
+}
+
+export function updateSettings(data: {
+  registration_enabled: boolean
+  oauth_providers: { provider: string; enabled: boolean; config: Record<string, string> }[]
+}) {
+  return api("/api/settings", { method: "PUT", body: JSON.stringify(data) })
 }

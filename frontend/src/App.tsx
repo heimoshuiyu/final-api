@@ -10,15 +10,22 @@ import { Channels } from "@/components/Channels"
 import { Members } from "@/components/Members"
 import { Logs } from "@/components/Logs"
 import { Inspect } from "@/components/Inspect"
+import { Settings } from "@/components/Settings"
 
-function parseHash(): { wsId: string; page: string } {
+function parseHash(): { wsId: string; page: string; oauthToken: string | null } {
   const hash = window.location.hash.slice(1)
+
+  const oauthMatch = hash.match(/^\/oauth-callback\?token=(.+)$/)
+  if (oauthMatch) {
+    return { wsId: "", page: "", oauthToken: oauthMatch[1] }
+  }
+
   const m = hash.match(/^\/ws\/(\d+)(\/.*)?$/)
   if (m) {
     const page = (m[2] || "/").replace(/\/+$/, "") || "/"
-    return { wsId: m[1], page }
+    return { wsId: m[1], page, oauthToken: null }
   }
-  return { wsId: "", page: hash || "/" }
+  return { wsId: "", page: hash || "/", oauthToken: null }
 }
 
 export default function App() {
@@ -26,7 +33,15 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(!!localStorage.getItem("token"))
   const [, forceTick] = useState(0)
-  const { wsId, page } = parseHash()
+  const { wsId, page, oauthToken } = parseHash()
+
+  useEffect(() => {
+    if (oauthToken) {
+      localStorage.setItem("token", oauthToken)
+      window.location.hash = ""
+      setAuthed(true)
+    }
+  }, [oauthToken])
 
   useEffect(() => {
     if (!authed) return
@@ -107,6 +122,8 @@ export default function App() {
               return <Inspect scope="workspace" />
             case page.startsWith("/ws-stats"):
               return <Stats scope="workspace" />
+            case page.startsWith("/settings"):
+              return <Settings />
             default:
               return <Dashboard navigate={navigate} />
           }

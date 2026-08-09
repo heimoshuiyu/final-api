@@ -6,6 +6,7 @@ pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
     pub sticky_ttl_seconds: u64,
+    pub oauth_redirect_base: String,
 }
 
 impl Config {
@@ -18,6 +19,8 @@ impl Config {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(3600),
+            oauth_redirect_base: env::var("OAUTH_REDIRECT_BASE")
+                .unwrap_or_else(|_| "http://localhost:5174".into()),
         }
     }
 }

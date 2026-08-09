@@ -277,3 +277,15 @@ pub async fn find_pending_invites_by_username(
     .fetch_all(pool)
     .await
 }
+
+pub async fn is_any_workspace_admin(
+    pool: &sqlx::PgPool,
+    user_id: i64,
+) -> Result<bool, sqlx::Error> {
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT 1 FROM workspace_members WHERE user_id = $1 AND role = 10 LIMIT 1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.is_some())
+}

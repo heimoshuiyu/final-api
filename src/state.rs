@@ -9,4 +9,5 @@ pub struct AppState {
     pub config: std::sync::Arc<Config>,
     pub inspect_tx: InspectTx,
     pub channel_load: ChannelLoadTracker,
+    pub wecom_token_cache: std::sync::Arc<tokio::sync::RwLock<Option<(String, std::time::Instant)>>>,
 }

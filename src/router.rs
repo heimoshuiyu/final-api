@@ -26,13 +26,18 @@ pub fn build_router(state: AppState) -> Router {
     let public_api = Router::<AppState>::new()
         .route("/api/user/login", post(handler::user::login))
         .route("/api/user/register", post(handler::user::register))
-        .route("/api/presets", get(handler::preset::list));
+        .route("/api/presets", get(handler::preset::list))
+        .route("/api/settings", get(handler::settings::public_settings))
+        .route("/api/oauth/{provider}/auth", get(handler::oauth::oauth_auth))
+        .route("/api/oauth/{provider}/callback", get(handler::oauth::oauth_callback));
 
     // ---- User-level routes (JWT only, no workspace required) ----
     let user_api = Router::<AppState>::new()
         .route("/api/user/self", get(handler::user::self_info))
         .route("/api/user/workspaces", get(handler::user::list_workspaces))
         .route("/api/workspace", post(handler::workspace::create))
+        .route("/api/settings/admin", get(handler::settings::admin_settings))
+        .route("/api/settings", put(handler::settings::update_settings))
         .layer(from_fn_with_state(state.clone(), jwt_auth_user_only));
 
     // ---- Protected management routes (JWT + workspace) ----

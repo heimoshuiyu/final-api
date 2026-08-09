@@ -33,6 +33,7 @@ import {
   Moon,
   LogOut,
   Plus,
+  Settings as SettingsIcon,
 } from "lucide-react"
 import type { Workspace } from "../types"
 import { fetchWorkspaces, createWorkspace } from "../api"
@@ -50,6 +51,7 @@ const ADMIN_NAV = [
   { path: "/members", label: "成员", icon: Users },
   { path: "/ws-stats", label: "工作区统计", icon: Globe },
   { path: "/monitor", label: "工作区监控", icon: Activity },
+  { path: "/settings", label: "系统设置", icon: SettingsIcon },
 ] as const
 
 export function Layout({

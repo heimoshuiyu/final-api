@@ -64,6 +64,11 @@ pub async fn register(
     State(state): State<AppState>,
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<Value>, AppError> {
+    let settings = db::settings::get(&state.pool).await?;
+    if !settings.registration_enabled {
+        return Err(AppError::Forbidden("registration is disabled".into()));
+    }
+
     if req.username.len() < 3 || req.username.len() > 64 {
         return Err(AppError::BadRequest("username must be 3-64 chars".into()));
     }

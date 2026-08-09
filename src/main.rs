@@ -38,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: std::sync::Arc::new(config.clone()),
         inspect_tx,
         channel_load: Default::default(),
+        wecom_token_cache: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
     };
 
     let app = router::build_router(state.clone());
