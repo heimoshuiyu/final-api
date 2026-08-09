@@ -1,4 +1,5 @@
 pub mod channel;
+pub mod embed;
 pub mod inspect;
 pub mod log;
 pub mod oauth;

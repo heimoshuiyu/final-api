@@ -95,6 +95,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(public_api)
         .merge(user_api)
         .merge(protected_api)
+        .fallback(handler::embed::static_handler)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
