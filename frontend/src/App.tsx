@@ -7,13 +7,13 @@ import { Dashboard } from "@/components/Dashboard"
 import { Stats } from "@/components/Stats"
 import { Tokens } from "@/components/Tokens"
 import { Channels } from "@/components/Channels"
-import { Members } from "@/components/Members"
 import { Logs } from "@/components/Logs"
 import { Inspect } from "@/components/Inspect"
 import { Settings } from "@/components/Settings"
 import { Users, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { InviteAccept } from "@/components/InviteAccept"
+import { WorkspaceSettings } from "@/components/WorkspaceSettings"
 
 function parseHash(): { wsId: string; page: string; oauthToken: string | null; inviteToken: string | null } {
   const hash = window.location.hash.slice(1)
@@ -163,7 +163,8 @@ export default function App() {
             case page.startsWith("/channels"):
               return <Channels />
             case page.startsWith("/members"):
-              return <Members />
+            case page.startsWith("/ws-settings"):
+              return <WorkspaceSettings />
             case page.startsWith("/logs"):
               return <Logs />
             case page.startsWith("/inspect"):

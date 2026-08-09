@@ -81,7 +81,11 @@ pub async fn rename(
     Json(req): Json<RenameRequest>,
 ) -> Result<Json<Value>, AppError> {
     assert_admin(&auth)?;
-    let ws = db::workspace::rename(&state.pool, auth.workspace_id, &req.name)
+    let name = req.name.trim();
+    if name.is_empty() || name.len() > 64 {
+        return Err(AppError::BadRequest("workspace name must be 1-64 characters".into()));
+    }
+    let ws = db::workspace::rename(&state.pool, auth.workspace_id, name)
         .await?
         .ok_or_else(|| AppError::NotFound("workspace not found".into()))?;
     Ok(Json(serde_json::json!({

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react"
 import {
+  fetchWorkspaceInfo,
+  renameWorkspace,
   fetchMembers,
   fetchInvites,
   createInvite,
@@ -17,6 +19,8 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -25,17 +29,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Link2, Trash2, Shield, Crown, Copy, Check, ArrowUpCircle } from "lucide-react"
+import {
+  Link2,
+  Trash2,
+  Shield,
+  Crown,
+  Copy,
+  Check,
+  ArrowUpCircle,
+  Settings2,
+  Loader2,
+} from "lucide-react"
 
-export function Members() {
+export function WorkspaceSettings() {
   const [members, setMembers] = useState<WorkspaceMember[]>([])
   const [invites, setInvites] = useState<WorkspaceInvite[]>([])
   const [error, setError] = useState("")
   const [copied, setCopied] = useState<number | null>(null)
 
+  const [wsName, setWsName] = useState("")
+  const [savingName, setSavingName] = useState(false)
+  const [nameError, setNameError] = useState("")
+
   const load = async () => {
     try {
-      const [m, i] = await Promise.all([fetchMembers(), fetchInvites()])
+      const [info, m, i] = await Promise.all([
+        fetchWorkspaceInfo(),
+        fetchMembers(),
+        fetchInvites(),
+      ])
+      setWsName(info.name)
       setMembers(m)
       setInvites(i)
     } catch (e) {
@@ -46,6 +69,26 @@ export function Members() {
   useEffect(() => {
     load()
   }, [])
+
+  const handleRename = async () => {
+    const name = wsName.trim()
+    if (!name) {
+      setNameError("名称不能为空")
+      return
+    }
+    setSavingName(true)
+    setNameError("")
+    try {
+      await renameWorkspace(name)
+      window.dispatchEvent(
+        new CustomEvent("workspace-renamed", { detail: { name } }),
+      )
+    } catch (e) {
+      setNameError(e instanceof Error ? e.message : "保存失败")
+    } finally {
+      setSavingName(false)
+    }
+  }
 
   const handleCreateInvite = async () => {
     try {
@@ -94,14 +137,58 @@ export function Members() {
 
   return (
     <div className="animate-slide-up">
-      {error && (
-        <p className="mb-4 text-sm text-destructive">{error}</p>
-      )}
+      {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
 
-      <h1 className="text-2xl font-bold tracking-tight">成员管理</h1>
+      <h1 className="text-2xl font-bold tracking-tight">工作区设置</h1>
+
+      {/* Workspace info */}
+      <Card className="glass-panel glow-border mt-6 border-0 animate-fade-in">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Settings2 className="size-4" />
+            工作区信息
+          </CardTitle>
+          <CardDescription className="text-xs">
+            修改工作区名称，将同步显示在侧边栏。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Label htmlFor="ws-name">工作区名称</Label>
+          <div className="mt-1.5 flex max-w-md items-center gap-2">
+            <Input
+              id="ws-name"
+              value={wsName}
+              onChange={(e) => setWsName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !savingName) handleRename()
+              }}
+              className="font-mono text-sm"
+              placeholder="工作区名称"
+            />
+            <Button
+              onClick={handleRename}
+              disabled={savingName || !wsName.trim()}
+              size="sm"
+              className="shrink-0"
+            >
+              {savingName ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  保存中…
+                </>
+              ) : (
+                "保存名称"
+              )}
+            </Button>
+          </div>
+          {nameError && (
+            <p className="mt-1.5 text-xs text-destructive">{nameError}</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Invite links */}
-      <Card className="glass-panel glow-border mt-6 border-0 animate-fade-in">
+      <Card className="glass-panel glow-border mt-4 border-0 animate-fade-in">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Link2 className="size-4" />

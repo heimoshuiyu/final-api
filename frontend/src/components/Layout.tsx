@@ -34,7 +34,6 @@ import {
   Network,
   ScrollText,
   Activity,
-  Users,
   BarChart3,
   Globe,
   Sun,
@@ -42,6 +41,7 @@ import {
   LogOut,
   Plus,
   ChevronsUpDown,
+  Settings2,
   Settings as SettingsIcon,
 } from "lucide-react"
 import type { Workspace } from "../types"
@@ -58,7 +58,7 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV = [
   { path: "/channels", label: "渠道", icon: Network },
-  { path: "/members", label: "成员", icon: Users },
+  { path: "/ws-settings", label: "工作区设置", icon: Settings2 },
   { path: "/ws-stats", label: "工作区统计", icon: Globe },
   { path: "/monitor", label: "工作区监控", icon: Activity },
   { path: "/settings", label: "系统设置", icon: SettingsIcon },
@@ -90,6 +90,17 @@ export function Layout({
   useEffect(() => {
     fetchWorkspaces().then(setWorkspaces).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const onRenamed = (e: Event) => {
+      const { name } = (e as CustomEvent).detail as { name: string }
+      setWorkspaces((prev) =>
+        prev.map((w) => (String(w.id) === wsId ? { ...w, name } : w)),
+      )
+    }
+    window.addEventListener("workspace-renamed", onRenamed)
+    return () => window.removeEventListener("workspace-renamed", onRenamed)
+  }, [wsId])
 
   const switchWorkspace = (id: string) => {
     if (id === wsId) return
