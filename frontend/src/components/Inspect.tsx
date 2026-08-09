@@ -141,10 +141,14 @@ export function Inspect() {
       if (filters.channelIds.size) params.set("channel_ids", [...filters.channelIds].join(","))
 
       const jwt = localStorage.getItem("token")
+      const wsId = localStorage.getItem("workspace_id")
 
       try {
         const res = await fetch(`/api/inspect/stream?${params}`, {
-          headers: { Authorization: `Bearer ${jwt}` },
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            ...(wsId ? { "X-Workspace-Id": wsId } : {}),
+          },
         })
 
         if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)

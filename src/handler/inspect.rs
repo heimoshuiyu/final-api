@@ -38,8 +38,10 @@ fn parse_set(s: &Option<String>) -> HashSet<String> {
 
 pub async fn stream(
     State(state): State<AppState>,
+    axum::Extension(auth): axum::Extension<crate::middleware::auth::JwtAuth>,
     Query(query): Query<InspectQuery>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, std::io::Error>>>, AppError> {
+    let workspace_id = auth.workspace_id;
     let filter = Arc::new(InspectFilter {
         token_ids: parse_ids(&query.token_ids),
         models: parse_set(&query.models),
@@ -63,11 +65,15 @@ pub async fn stream(
                             let pass = match &event {
                                 InspectEvent::Start {
                                     req_id,
+                                    workspace_id: ws_id,
                                     token_id,
                                     model,
                                     channel_id,
                                     ..
                                 } => {
+                                    if *ws_id != workspace_id {
+                                        continue;
+                                    }
                                     let ok = (filter.token_ids.is_empty()
                                         || filter.token_ids.contains(token_id))
                                         && (filter.models.is_empty()

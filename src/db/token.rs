@@ -5,6 +5,7 @@ use sqlx::FromRow;
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct TokenRow {
     pub id: i64,
+    pub workspace_id: i64,
     pub user_id: i64,
     pub key: String,
     pub name: String,
@@ -23,10 +24,27 @@ pub async fn find_by_key(pool: &sqlx::PgPool, key: &str) -> Result<Option<TokenR
         .await
 }
 
-pub async fn list_by_user(pool: &sqlx::PgPool, user_id: i64) -> Result<Vec<TokenRow>, sqlx::Error> {
+pub async fn list_by_workspace(
+    pool: &sqlx::PgPool,
+    workspace_id: i64,
+) -> Result<Vec<TokenRow>, sqlx::Error> {
     sqlx::query_as::<_, TokenRow>(
-        "SELECT * FROM tokens WHERE user_id = $1 ORDER BY id DESC",
+        "SELECT * FROM tokens WHERE workspace_id = $1 ORDER BY id DESC",
     )
+    .bind(workspace_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn list_by_user(
+    pool: &sqlx::PgPool,
+    workspace_id: i64,
+    user_id: i64,
+) -> Result<Vec<TokenRow>, sqlx::Error> {
+    sqlx::query_as::<_, TokenRow>(
+        "SELECT * FROM tokens WHERE workspace_id = $1 AND user_id = $2 ORDER BY id DESC",
+    )
+    .bind(workspace_id)
     .bind(user_id)
     .fetch_all(pool)
     .await
@@ -40,6 +58,7 @@ pub async fn list_all(pool: &sqlx::PgPool) -> Result<Vec<TokenRow>, sqlx::Error>
 
 pub async fn create(
     pool: &sqlx::PgPool,
+    workspace_id: i64,
     user_id: i64,
     key: &str,
     name: &str,
@@ -48,9 +67,10 @@ pub async fn create(
     expired_at: Option<DateTime<Utc>>,
 ) -> Result<TokenRow, sqlx::Error> {
     sqlx::query_as::<_, TokenRow>(
-        r#"INSERT INTO tokens (user_id, key, name, model_limits_enabled, model_limits, expired_at)
-           VALUES ($1, $2, $3, $4, $5, $6) RETURNING *"#,
+        r#"INSERT INTO tokens (workspace_id, user_id, key, name, model_limits_enabled, model_limits, expired_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *"#,
     )
+    .bind(workspace_id)
     .bind(user_id)
     .bind(key)
     .bind(name)
@@ -61,10 +81,10 @@ pub async fn create(
     .await
 }
 
-pub async fn delete(pool: &sqlx::PgPool, id: i64, user_id: i64) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM tokens WHERE id = $1 AND user_id = $2")
+pub async fn delete(pool: &sqlx::PgPool, id: i64, workspace_id: i64) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM tokens WHERE id = $1 AND workspace_id = $2")
         .bind(id)
-        .bind(user_id)
+        .bind(workspace_id)
         .execute(pool)
         .await?;
     Ok(result.rows_affected() > 0)
@@ -73,19 +93,21 @@ pub async fn delete(pool: &sqlx::PgPool, id: i64, user_id: i64) -> Result<bool, 
 pub async fn find_by_id(
     pool: &sqlx::PgPool,
     id: i64,
-    user_id: i64,
+    workspace_id: i64,
 ) -> Result<Option<TokenRow>, sqlx::Error> {
-    sqlx::query_as::<_, TokenRow>("SELECT * FROM tokens WHERE id = $1 AND user_id = $2")
-        .bind(id)
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
+    sqlx::query_as::<_, TokenRow>(
+        "SELECT * FROM tokens WHERE id = $1 AND workspace_id = $2",
+    )
+    .bind(id)
+    .bind(workspace_id)
+    .fetch_optional(pool)
+    .await
 }
 
 pub async fn update(
     pool: &sqlx::PgPool,
     id: i64,
-    user_id: i64,
+    workspace_id: i64,
     name: &str,
     status: i16,
     model_limits_enabled: bool,
@@ -95,10 +117,10 @@ pub async fn update(
     sqlx::query_as::<_, TokenRow>(
         r#"UPDATE tokens SET name = $3, status = $4, model_limits_enabled = $5,
            model_limits = $6, expired_at = $7
-           WHERE id = $1 AND user_id = $2 RETURNING *"#,
+           WHERE id = $1 AND workspace_id = $2 RETURNING *"#,
     )
     .bind(id)
-    .bind(user_id)
+    .bind(workspace_id)
     .bind(name)
     .bind(status)
     .bind(model_limits_enabled)

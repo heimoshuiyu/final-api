@@ -22,6 +22,9 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
     try {
       const data = await login(username, password)
       localStorage.setItem("token", data.token)
+      if (data.workspaces && data.workspaces.length > 0) {
+        window.location.hash = `/ws/${data.workspaces[0].id}`
+      }
       onLogin(data.token)
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败")

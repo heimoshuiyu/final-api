@@ -5,3 +5,4 @@ pub mod preset;
 pub mod relay;
 pub mod token;
 pub mod user;
+pub mod workspace;

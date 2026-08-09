@@ -1,13 +1,18 @@
 services:
   app:
     build:
-      context: ..
-      dockerfile: .devcontainer/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     userns_mode: "keep-id"
     volumes:
-      - ..:/workspace:cached
+      - .:/workspace:cached
       - cargo-registry:/usr/local/cargo/registry
     command: sleep infinity
+    environment:
+      - DATABASE_URL=postgres://finalapi:finalapi@db:5432/finalapi
+    ports:
+      - "3000:3000"
+      - "5174:5174"
     depends_on:
       db:
         condition: service_healthy

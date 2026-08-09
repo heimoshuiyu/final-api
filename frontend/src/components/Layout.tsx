@@ -1,23 +1,45 @@
-import { type ReactNode } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 import { useTheme } from "../theme"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   LayoutDashboard,
   KeyRound,
   Network,
   ScrollText,
   Activity,
+  Users,
   Sun,
   Moon,
   LogOut,
+  Plus,
 } from "lucide-react"
+import type { Workspace } from "../types"
+import { fetchWorkspaces, createWorkspace } from "../api"
 
 const NAV_ITEMS = [
   { path: "/", label: "概览", icon: LayoutDashboard },
   { path: "/tokens", label: "令牌", icon: KeyRound },
   { path: "/channels", label: "渠道", icon: Network },
+  { path: "/members", label: "成员", icon: Users },
   { path: "/logs", label: "请求", icon: ScrollText },
   { path: "/inspect", label: "实时", icon: Activity },
 ] as const
@@ -25,13 +47,56 @@ const NAV_ITEMS = [
 export function Layout({
   active,
   navigate,
+  wsId,
   children,
 }: {
   active: string
   navigate: (r: string) => void
+  wsId: string
   children: ReactNode
 }) {
   const { theme, toggle } = useTheme()
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState("")
+
+  useEffect(() => {
+    fetchWorkspaces().then(setWorkspaces).catch(() => {})
+  }, [])
+
+  const switchWorkspace = (id: string) => {
+    if (id === wsId) return
+    window.location.hash = `/ws/${id}`
+  }
+
+  const handleCreate = async () => {
+    const name = newName.trim()
+    if (!name) return
+    setCreating(true)
+    setCreateError("")
+    try {
+      const ws = await createWorkspace(name)
+      setWorkspaces((prev) => [...prev, ws])
+      setCreateOpen(false)
+      setNewName("")
+      window.location.hash = `/ws/${ws.id}`
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "创建失败")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const currentWs = workspaces.find((w) => String(w.id) === wsId)
+  const isAdmin = currentWs?.role === 10
+
+  const visibleNav = NAV_ITEMS.filter((item) => {
+    if (item.path === "/channels" && !isAdmin) return false
+    if (item.path === "/members" && !isAdmin) return false
+    return true
+  })
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -51,9 +116,70 @@ export function Layout({
           </div>
         </div>
 
+        {/* Workspace switcher */}
+        <div className="px-3 pb-3">
+          <Select value={wsId} onValueChange={switchWorkspace}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="选择工作区" />
+            </SelectTrigger>
+            <SelectContent>
+              {workspaces.map((ws) => (
+                <SelectItem key={ws.id} value={String(ws.id)}>
+                  {ws.name}
+                  {ws.role === 10 && " (管理员)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCreateOpen(true)}
+            className="mt-1.5 w-full justify-start gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            <Plus className="size-3" />
+            新建工作区
+          </Button>
+        </div>
+
+        {/* Create workspace dialog */}
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>新建工作区</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="ws-name">工作区名称</Label>
+              <Input
+                id="ws-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="例如：生产环境"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !creating) handleCreate()
+                }}
+                autoFocus
+              />
+              {createError && (
+                <p className="text-xs text-destructive">{createError}</p>
+              )}
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline" size="sm" disabled={creating}>
+                  取消
+                </Button>
+              </DialogClose>
+              <Button size="sm" onClick={handleCreate} disabled={creating || !newName.trim()}>
+                {creating ? "创建中..." : "创建"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Nav */}
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {NAV_ITEMS.map((item) => {
+          {visibleNav.map((item) => {
             const isActive = active === item.path
             const Icon = item.icon
             return (
@@ -99,6 +225,8 @@ export function Layout({
             size="sm"
             onClick={() => {
               localStorage.removeItem("token")
+              localStorage.removeItem("workspace_id")
+              window.location.hash = ""
               window.location.reload()
             }}
             className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"

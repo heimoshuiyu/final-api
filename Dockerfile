@@ -1,26 +1,25 @@
-# Build frontend
-FROM node:22-alpine AS frontend
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ .
-RUN npm run build
+FROM mcr.microsoft.com/devcontainers/base:1-bookworm
 
-# Build backend
-FROM rust:1-bookworm AS backend
-WORKDIR /app
-COPY Cargo.toml Cargo.lock ./
-COPY src/ src/
-COPY migrations/ migrations/
-RUN cargo build --release
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get -y install --no-install-recommends \
+    postgresql-client \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Runtime
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-COPY --from=backend /app/target/release/final-api .
-COPY --from=frontend /app/frontend/dist ./frontend/dist
-COPY migrations/ ./migrations/
-EXPOSE 3000
-CMD ["./final-api"]
+# Node.js 22（npmmirror 二进制镜像；不用 devcontainers node feature，避免其自带 eslint 扩展）
+RUN curl -fsSL https://registry.npmmirror.com/-/binary/node/v22.17.0/node-v22.17.0-linux-x64.tar.gz \
+    | tar -xz -C /usr/local --strip-components=1 \
+    && npm config set registry https://registry.npmmirror.com -g
+
+# Rust 1.97（USTC 镜像安装 rustup 并固定默认版本，rebuild 不回退）
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl -fsSL https://mirrors.ustc.edu.cn/rust-static/rustup/dist/x86_64-unknown-linux-gnu/rustup-init -o /tmp/rustup-init \
+    && chmod +x /tmp/rustup-init \
+    && RUSTUP_DIST_SERVER=https://mirrors.ustc.edu.cn/rust-static \
+       RUSTUP_UPDATE_ROOT=https://mirrors.ustc.edu.cn/rust-static/rustup \
+       /tmp/rustup-init -y --default-toolchain 1.97.0 --profile minimal -c rustfmt -c clippy \
+    && rm /tmp/rustup-init \
+    && chmod -R a+w /usr/local/rustup /usr/local/cargo

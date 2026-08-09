@@ -9,6 +9,7 @@ use futures::Stream;
 use serde::Serialize;
 use tokio::sync::broadcast;
 
+use crate::service::concurrency::ConcurrencyPermit;
 use crate::service::usage::{UsageData, UsageExtractor, UsageFormat};
 
 fn headers_to_json(headers: &HeaderMap) -> serde_json::Value {
@@ -36,6 +37,7 @@ pub enum InspectEvent {
     Start {
         req_id: String,
         ts: i64,
+        workspace_id: i64,
         user_id: i64,
         token_id: i64,
         token_name: String,
@@ -85,6 +87,7 @@ pub struct InspectStream<S> {
     usage_extractor: UsageExtractor,
     pool: Option<sqlx::PgPool>,
     log_id: Option<i64>,
+    _permit: Option<ConcurrencyPermit>,
 }
 
 impl<S> InspectStream<S> {
@@ -99,6 +102,7 @@ impl<S> InspectStream<S> {
         is_stream: bool,
         pool: sqlx::PgPool,
         log_id: i64,
+        permit: Option<ConcurrencyPermit>,
     ) -> Self {
         Self {
             inner,
@@ -110,6 +114,7 @@ impl<S> InspectStream<S> {
             usage_extractor: UsageExtractor::new(usage_format, is_stream),
             pool: Some(pool),
             log_id: Some(log_id),
+            _permit: permit,
         }
     }
 }

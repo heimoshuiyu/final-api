@@ -17,6 +17,10 @@ export default defineConfig({
       "/api": "http://localhost:3000",
       "/v1": "http://localhost:3000",
     },
+    hmr: {
+      host: "localhost",
+      port: 5174,
+    },
   },
   build: {
     outDir: "dist",

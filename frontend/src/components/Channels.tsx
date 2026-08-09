@@ -76,6 +76,8 @@ export function Channels() {
   const [apiKey, setApiKey] = useState("")
   const [authType, setAuthType] = useState("bearer")
   const [weight, setWeight] = useState(1)
+  const [maxConcurrency, setMaxConcurrency] = useState(0)
+  const [priority, setPriority] = useState(0)
   const [modelRows, setModelRows] = useState<ModelRow[]>([])
   const [expandedModels, setExpandedModels] = useState<Set<number>>(new Set())
 
@@ -117,6 +119,8 @@ export function Channels() {
     setApiKey("")
     setAuthType("bearer")
     setWeight(1)
+    setMaxConcurrency(0)
+    setPriority(0)
     setModelRows([])
     setExpandedModels(new Set())
     setPresetSearch("")
@@ -137,6 +141,8 @@ export function Channels() {
     setEndpointUrl(ch.endpoint_url)
     setAuthType(ch.auth_type)
     setWeight(ch.weight)
+    setMaxConcurrency(ch.max_concurrency ?? 0)
+    setPriority(ch.priority ?? 0)
     const mapping = ch.model_mapping || {}
     const overrides = ch.model_overrides || {}
     setModelRows(
@@ -278,9 +284,11 @@ export function Channels() {
         auth_type: authType,
         api_key: apiKey,
         models,
+        priority,
         weight,
         model_mapping,
         model_overrides,
+        max_concurrency: maxConcurrency,
       }
 
       if (editingId) {
@@ -395,15 +403,38 @@ export function Channels() {
                 <Label>渠道名称</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-channel" />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label>权重</Label>
-                <Input
-                  type="number"
-                  value={weight}
-                  onChange={(e) => setWeight(Number(e.target.value))}
-                  className="font-mono"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-2">
+                  <Label>优先级</Label>
+                  <Input
+                    type="number"
+                    value={priority}
+                    onChange={(e) => setPriority(Number(e.target.value))}
+                    className="font-mono"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>权重</Label>
+                  <Input
+                    type="number"
+                    value={weight}
+                    onChange={(e) => setWeight(Number(e.target.value))}
+                    className="font-mono"
+                  />
+                </div>
               </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>最大并发（0 = 无限制）</Label>
+              <Input
+                type="number"
+                value={maxConcurrency}
+                onChange={(e) => setMaxConcurrency(Number(e.target.value))}
+                className="font-mono"
+                placeholder="0"
+              />
             </div>
 
             <div className="flex flex-col gap-2">
@@ -721,7 +752,9 @@ function ChannelCard({
       )}
 
       <div className="mt-2 flex flex-wrap gap-4 font-mono text-[10px] text-muted-foreground">
+        {channel.priority > 0 && <span>优先级 {channel.priority}</span>}
         <span>权重 {channel.weight}</span>
+        {channel.max_concurrency > 0 && <span>并发 ≤ {channel.max_concurrency}</span>}
         {mappingCount > 0 && <span>{mappingCount} 条映射</span>}
         {overrideCount > 0 && <span className="text-chart-3">{overrideCount} 个覆盖</span>}
       </div>

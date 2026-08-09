@@ -5,6 +5,7 @@ use sqlx::FromRow;
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct LogRow {
     pub id: i64,
+    pub workspace_id: Option<i64>,
     pub token_id: Option<i64>,
     pub user_id: Option<i64>,
     pub channel_id: Option<i64>,
@@ -24,6 +25,7 @@ pub struct LogRow {
 
 #[derive(Debug)]
 pub struct CreateLogParams<'a> {
+    pub workspace_id: i64,
     pub token_id: Option<i64>,
     pub user_id: Option<i64>,
     pub channel_id: Option<i64>,
@@ -37,11 +39,12 @@ pub struct CreateLogParams<'a> {
 
 pub async fn create(pool: &sqlx::PgPool, p: &CreateLogParams<'_>) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
-        r#"INSERT INTO request_logs (token_id, user_id, channel_id, model, is_stream,
+        r#"INSERT INTO request_logs (workspace_id, token_id, user_id, channel_id, model, is_stream,
            status_code, duration_ms, session_id, error_message)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            RETURNING id"#,
     )
+    .bind(p.workspace_id)
     .bind(p.token_id)
     .bind(p.user_id)
     .bind(p.channel_id)
@@ -84,7 +87,9 @@ pub async fn update_usage(
 
 #[derive(Debug, Deserialize)]
 pub struct LogQuery {
+    pub workspace_id: Option<i64>,
     pub user_id: Option<i64>,
+    pub token_id: Option<i64>,
     pub channel_id: Option<i64>,
     pub model: Option<String>,
     pub page: Option<i64>,
@@ -94,11 +99,15 @@ pub struct LogQuery {
 pub async fn count(pool: &sqlx::PgPool, q: &LogQuery) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
         r#"SELECT COUNT(*) FROM request_logs
-           WHERE ($1::bigint IS NULL OR user_id = $1)
-           AND ($2::bigint IS NULL OR channel_id = $2)
-           AND ($3::text IS NULL OR model = $3)"#,
+           WHERE ($1::bigint IS NULL OR workspace_id = $1)
+           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($3::bigint IS NULL OR token_id = $3)
+           AND ($4::bigint IS NULL OR channel_id = $4)
+           AND ($5::text IS NULL OR model = $5)"#,
     )
+    .bind(q.workspace_id)
     .bind(q.user_id)
+    .bind(q.token_id)
     .bind(q.channel_id)
     .bind(q.model.as_deref())
     .fetch_one(pool)
@@ -113,12 +122,16 @@ pub async fn list(pool: &sqlx::PgPool, q: &LogQuery) -> Result<Vec<LogRow>, sqlx
 
     sqlx::query_as::<_, LogRow>(
         r#"SELECT * FROM request_logs
-           WHERE ($1::bigint IS NULL OR user_id = $1)
-           AND ($2::bigint IS NULL OR channel_id = $2)
-           AND ($3::text IS NULL OR model = $3)
-           ORDER BY id DESC LIMIT $4 OFFSET $5"#,
+           WHERE ($1::bigint IS NULL OR workspace_id = $1)
+           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($3::bigint IS NULL OR token_id = $3)
+           AND ($4::bigint IS NULL OR channel_id = $4)
+           AND ($5::text IS NULL OR model = $5)
+           ORDER BY id DESC LIMIT $6 OFFSET $7"#,
     )
+    .bind(q.workspace_id)
     .bind(q.user_id)
+    .bind(q.token_id)
     .bind(q.channel_id)
     .bind(q.model.as_deref())
     .bind(page_size)

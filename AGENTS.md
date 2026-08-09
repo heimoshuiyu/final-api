@@ -2,13 +2,18 @@
 
 ## 技术栈
 
-Rust 1.97 + Axum 0.8 + SQLx 0.9（运行时查询，不用 `query!` 宏）+ PostgreSQL。前端：React 19 + Vite 8 + TypeScript 7 + TailwindCSS 4 + shadcn/ui（new-york 风格，radix-ui 统一包）+ lucide-react 图标。开发环境：VSCode Dev Container + Podman。
+Rust 1.97 + Axum 0.8 + SQLx 0.9（运行时查询，不用 `query!` 宏）+ PostgreSQL。前端：React 19 + Vite 8 + TypeScript 7 + TailwindCSS 4 + shadcn/ui（new-york 风格，radix-ui 统一包）+ lucide-react 图标。开发环境：Podman（podman-compose），不用 VSCode Dev Container。
 
 ## 常用命令
 
 ```bash
-# 所有命令在容器内执行。从宿主机进入容器：
-podman exec -it finalapidevcontainer_app_1 bash
+# 容器管理（宿主机执行）：
+podman-compose up -d            # 启动 app + db 容器
+podman-compose down             # 停止并删除容器
+podman-compose build            # 重新构建镜像（改 Dockerfile 后）
+
+# 从宿主机进入容器：
+podman exec -it final-api_app_1 bash
 
 # 在容器内：
 cargo check                      # 后端类型检查
@@ -19,8 +24,8 @@ cd frontend && npm run build     # 构建前端到 frontend/dist
 bash scripts/update-presets.sh   # 从 models.dev 下载原始数据到 assets/models-dev.json
 
 # 从宿主机直接在容器内执行单条命令：
-podman exec finalapidevcontainer_app_1 bash -c 'cd /workspace && cargo check'
-podman exec finalapidevcontainer_app_1 bash -c 'cd /workspace/frontend && npm run dev'
+podman exec final-api_app_1 bash -c 'cd /workspace && cargo check'
+podman exec final-api_app_1 bash -c 'cd /workspace/frontend && npm run dev'
 ```
 
 ## 依赖管理
@@ -29,29 +34,12 @@ podman exec finalapidevcontainer_app_1 bash -c 'cd /workspace/frontend && npm ru
 
 ### 国内镜像配置
 
-容器内已预配置以下镜像（持久化在 devcontainer 的 dotfiles 中）：
+镜像配置已全部固化在项目根目录 `Dockerfile` 中（rebuild 不丢失）：
 
-- **Cargo（Rust）**：`.cargo/config.toml` 中配置了 USTC 镜像源（`sparse+https://mirrors.ustc.edu.cn/crates.io-index/`）。
-- **npm（Node）**：`npm config set registry https://registry.npmmirror.com`。
-
-如果镜像配置丢失，手动恢复：
-
-```bash
-# Cargo 镜像
-cat > .cargo/config.toml << 'EOF'
-[source.crates-io]
-replace-with = "ustc"
-
-[source.ustc]
-registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"
-
-[build]
-target-dir = "/tmp/final-api-target"
-EOF
-
-# npm 镜像
-npm config set registry https://registry.npmmirror.com
-```
+- **基础镜像**：`mcr.microsoft.com/devcontainers/base:1-bookworm`。
+- **Rust**：Dockerfile 通过 USTC rustup 镜像安装并固定 1.97.0（`RUSTUP_DIST_SERVER` / `RUSTUP_UPDATE_ROOT` 环境变量），profile minimal + rustfmt + clippy。
+- **Node.js 22**：Dockerfile 从 npmmirror 二进制镜像安装，并全局设置 npm registry 为 `https://registry.npmmirror.com`。
+- **Cargo**：工作区 `.cargo/config.toml` 配置了 USTC 镜像源（`sparse+https://mirrors.ustc.edu.cn/crates.io-index/`）和 `target-dir = "/tmp/final-api-target"`，随仓库分发。
 
 ### 安装 / 升级依赖
 
@@ -125,7 +113,7 @@ cd /workspace/frontend && npx npm-check-updates -u && npm install
 - **前端路由**：基于 hash，无 react-router。`App.tsx` 根据 `window.location.hash` 切换。
 - **前端组件**：shadcn/ui（new-york 风格），组件在 `frontend/src/components/ui/`，通过 `npx shadcn@latest add` 添加。路径别名 `@/` → `src/`。图标用 `lucide-react`。`cn()` 在 `src/lib/utils.ts`。
 - **前端主题**：OKLCH 色彩系统（参考 opencode-token-dashboard 风格）。`index.css` 中定义 CSS 变量，`<html>` 上的 `.dark`/`.light` class 切换主题（非 `data-theme` 属性）。默认深色。工具类：`.glass-panel`（毛玻璃面板）、`.glow-border`（发光边框）、`.accent-gradient-text`（品牌渐变文字）、`.bg-grid`（网格背景）、`.bg-radial-glow`（深色模式径向光晕）。字体：Geist Variable（UI）+ JetBrains Mono Variable（数据）。
-- **Podman**：devcontainer 配置为 rootless Podman。docker-compose.yml 中有 `userns_mode: "keep-id"`。VS Code 设置指向 `podman`/`podman-compose`。
+- **Podman**：rootless Podman + podman-compose。docker-compose.yml 中有 `userns_mode: "keep-id"`，端口 3000/5174 直接映射到宿主机。不用 VSCode Dev Container。
 - **接口格式校验**：中继会拒绝入口端点格式和存储的 `endpoint_url` 后缀不匹配的请求（`/chat/completions` = OpenAI，`/messages` = Anthropic）。
 
 ## 默认凭据

@@ -8,7 +8,6 @@ pub struct UserRow {
     pub username: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
-    pub role: i16,
     pub status: i16,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

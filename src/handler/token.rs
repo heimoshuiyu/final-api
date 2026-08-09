@@ -1,7 +1,7 @@
 use axum::extract::{Path, State};
 use axum::Json;
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::db;
@@ -17,16 +17,15 @@ pub struct CreateToken {
     pub expired_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize)]
-pub struct CreateTokenResponse {
-    pub token: db::token::TokenRow,
-}
-
 pub async fn list(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<JwtAuth>,
 ) -> Result<Json<Vec<db::token::TokenRow>>, AppError> {
-    let tokens = db::token::list_by_user(&state.pool, auth.user_id).await?;
+    let tokens = if auth.workspace_role >= 10 {
+        db::token::list_by_workspace(&state.pool, auth.workspace_id).await?
+    } else {
+        db::token::list_by_user(&state.pool, auth.workspace_id, auth.user_id).await?
+    };
     Ok(Json(tokens))
 }
 
@@ -38,6 +37,7 @@ pub async fn create(
     let key = generate_api_key();
     let token = db::token::create(
         &state.pool,
+        auth.workspace_id,
         auth.user_id,
         &key,
         &req.name,
@@ -49,6 +49,7 @@ pub async fn create(
 
     Ok(Json(serde_json::json!({
         "id": token.id,
+        "workspace_id": token.workspace_id,
         "key": token.key,
         "name": token.name,
         "status": token.status,
@@ -64,7 +65,7 @@ pub async fn delete(
     axum::Extension(auth): axum::Extension<JwtAuth>,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, AppError> {
-    let deleted = db::token::delete(&state.pool, id, auth.user_id).await?;
+    let deleted = db::token::delete(&state.pool, id, auth.workspace_id).await?;
     if !deleted {
         return Err(AppError::NotFound("token not found".into()));
     }
@@ -86,14 +87,19 @@ pub async fn update(
     Path(id): Path<i64>,
     Json(req): Json<UpdateToken>,
 ) -> Result<Json<db::token::TokenRow>, AppError> {
-    let existing = db::token::find_by_id(&state.pool, id, auth.user_id)
+    let existing = db::token::find_by_id(&state.pool, id, auth.workspace_id)
         .await?
         .ok_or_else(|| AppError::NotFound("token not found".into()))?;
+
+    // Members can only edit their own tokens
+    if auth.workspace_role < 10 && existing.user_id != auth.user_id {
+        return Err(AppError::Forbidden("not your token".into()));
+    }
 
     let token = db::token::update(
         &state.pool,
         id,
-        auth.user_id,
+        auth.workspace_id,
         req.name.as_deref().unwrap_or(&existing.name),
         req.status.unwrap_or(existing.status),
         req.model_limits_enabled.unwrap_or(existing.model_limits_enabled),

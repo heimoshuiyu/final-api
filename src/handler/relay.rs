@@ -71,11 +71,11 @@ pub async fn handler(
         .unwrap_or("")
         .to_string();
 
-    let sticky_id = if !session_id.is_empty() {
-        session_id.clone()
-    } else {
-        auth.token_id.to_string()
-    };
+    let sticky_id = service::session::derive_sticky_id(
+        &parts.headers,
+        body_json.as_ref().unwrap_or(&serde_json::Value::Null),
+        auth.token_id,
+    );
 
     if auth.model_limits_enabled && !auth.model_limits.is_empty() && !auth.model_limits.contains(&model) {
         return Err(AppError::Forbidden(format!(
@@ -83,21 +83,51 @@ pub async fn handler(
         )));
     }
 
-    let channels = db::channel::find_by_model(&state.pool, &model).await?;
+    let channels = db::channel::find_by_model(&state.pool, auth.workspace_id, &model).await?;
     if channels.is_empty() {
         return Err(AppError::NotFound(format!(
             "no channel available for model: {model}"
         )));
     }
 
-    // Select channel: sticky first, then deterministic hash
+    // Select channel: sticky first (with concurrency check), then load-balanced
     let sticky_key = format!("{model}/{sticky_id}");
-    let sticky_channel_id = db::sticky::get(&state.pool, &sticky_key).await?;
+    let sticky_sid = db::sticky::get(&state.pool, &sticky_key).await?;
 
-    let channel = sticky_channel_id
+    let selection = if let Some(ch) = sticky_sid
         .and_then(|sid| channels.iter().find(|c| c.id == sid && c.status == 1))
-        .or_else(|| service::routing::select_channel(&channels, &sticky_id, &[], &model))
-        .ok_or_else(|| AppError::BadGateway("no channel available".into()))?;
+    {
+        if let Some(p) = state
+            .channel_load
+            .try_acquire(ch.id, ch.max_concurrency)
+        {
+            state.channel_load.mark_used(ch.id);
+            let _ =
+                db::sticky::refresh(&state.pool, &sticky_key, state.config.sticky_ttl_seconds)
+                    .await;
+            Some(service::routing::ChannelSelection {
+                channel: ch,
+                permit: Some(p),
+            })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let selection = match selection {
+        Some(s) => s,
+        None => service::routing::select_channel(
+            &channels,
+            &[],
+            &state.channel_load,
+        )
+        .ok_or_else(|| AppError::BadGateway("no channel available".into()))?,
+    };
+
+    let channel = selection.channel;
+    let permit = selection.permit;
 
     // Apply model mapping and body overrides
     let final_body: Bytes = {
@@ -182,6 +212,7 @@ pub async fn handler(
     let _ = state.inspect_tx.send(InspectEvent::Start {
         req_id: req_id.clone(),
         ts: chrono::Utc::now().timestamp_millis(),
+        workspace_id: auth.workspace_id,
         user_id: auth.user_id,
         token_id: auth.token_id,
         token_name: auth.token_name.clone(),
@@ -209,7 +240,13 @@ pub async fn handler(
             let status_code = status.as_u16();
 
             if status_code == 200 {
-                let _ = db::sticky::set(&state.pool, &sticky_key, channel.id).await;
+                let _ = db::sticky::set(
+                    &state.pool,
+                    &sticky_key,
+                    channel.id,
+                    state.config.sticky_ttl_seconds,
+                )
+                .await;
             }
 
             let duration_ms = start.elapsed().as_millis() as i32;
@@ -240,6 +277,7 @@ pub async fn handler(
                 is_stream,
                 state.pool.clone(),
                 log_id,
+                permit,
             );
 
             Ok(response_builder.body(Body::from_stream(tapped))?)
@@ -279,6 +317,7 @@ async fn log_request(
     db::log::create(
         pool,
         &db::log::CreateLogParams {
+            workspace_id: auth.workspace_id,
             token_id: Some(auth.token_id),
             user_id: Some(auth.user_id),
             channel_id: Some(channel_id),
@@ -295,8 +334,9 @@ async fn log_request(
 
 pub async fn models(
     State(state): State<AppState>,
+    axum::Extension(auth): axum::Extension<TokenAuth>,
 ) -> Result<axum::Json<Value>, AppError> {
-    let model_list = db::channel::all_models(&state.pool).await?;
+    let model_list = db::channel::all_models(&state.pool, auth.workspace_id).await?;
 
     let data: Vec<Value> = model_list
         .iter()

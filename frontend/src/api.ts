@@ -7,6 +7,9 @@ import type {
   ProviderPreset,
   Token,
   User,
+  Workspace,
+  WorkspaceInvite,
+  WorkspaceMember,
 } from "./types"
 
 const BASE = ""
@@ -15,13 +18,27 @@ function getToken(): string | null {
   return localStorage.getItem("token")
 }
 
+function getWorkspaceId(): string | null {
+  const m = window.location.hash.match(/^#\/ws\/(\d+)/)
+  if (m) {
+    localStorage.setItem("workspace_id", m[1])
+    return m[1]
+  }
+  return localStorage.getItem("workspace_id")
+}
+
 export async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = getToken()
+  const wsId = getWorkspaceId()
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((opts.headers as Record<string, string>) || {}),
   }
+  const isPublic = path === "/api/user/login" || path === "/api/user/register" || path.startsWith("/api/presets");
   if (token) headers["Authorization"] = `Bearer ${token}`
+  if (wsId && !isPublic) {
+    headers["X-Workspace-Id"] = wsId
+  }
 
   const res = await fetch(`${BASE}${path}`, { ...opts, headers })
 
@@ -35,14 +52,14 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
 }
 
 export function login(username: string, password: string) {
-  return api<{ token: string; user: User }>("/api/user/login", {
+  return api<{ token: string; user: User; workspaces: Workspace[] }>("/api/user/login", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   })
 }
 
 export function register(username: string, password: string) {
-  return api<{ token: string }>("/api/user/register", {
+  return api<{ token: string; user: User; workspaces: Workspace[] }>("/api/user/register", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   })
@@ -50,6 +67,46 @@ export function register(username: string, password: string) {
 
 export function fetchSelf() {
   return api<User>("/api/user/self")
+}
+
+export function fetchWorkspaces() {
+  return api<Workspace[]>("/api/user/workspaces")
+}
+
+export function createWorkspace(name: string) {
+  return api<Workspace>("/api/workspace", { method: "POST", body: JSON.stringify({ name }) })
+}
+
+export function fetchWorkspaceInfo() {
+  return api<{ id: number; name: string; slug: string | null; member_count: number; role: number }>("/api/workspace")
+}
+
+export function renameWorkspace(name: string) {
+  return api("/api/workspace", { method: "PUT", body: JSON.stringify({ name }) })
+}
+
+export function fetchMembers() {
+  return api<WorkspaceMember[]>("/api/workspace/members")
+}
+
+export function updateMemberRole(userId: number, role: number) {
+  return api(`/api/workspace/members/${userId}`, { method: "PUT", body: JSON.stringify({ role }) })
+}
+
+export function removeMember(userId: number) {
+  return api(`/api/workspace/members/${userId}`, { method: "DELETE" })
+}
+
+export function createInvite(username: string, role: number) {
+  return api("/api/workspace/invites", { method: "POST", body: JSON.stringify({ username, role }) })
+}
+
+export function fetchInvites() {
+  return api<WorkspaceInvite[]>("/api/workspace/invites")
+}
+
+export function deleteInvite(id: number) {
+  return api(`/api/workspace/invites/${id}`, { method: "DELETE" })
 }
 
 export function fetchTokens() {

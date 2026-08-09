@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::service::concurrency::ChannelLoadTracker;
 use crate::service::inspect::InspectTx;
 
 #[derive(Clone)]
@@ -7,4 +8,5 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub config: std::sync::Arc<Config>,
     pub inspect_tx: InspectTx,
+    pub channel_load: ChannelLoadTracker,
 }

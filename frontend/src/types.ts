@@ -1,15 +1,37 @@
-export type UserRole = 1 | 10
-
 export interface User {
   id: number
   username: string
-  role: UserRole
   status: number
   created_at?: string
 }
 
+export interface Workspace {
+  id: number
+  name: string
+  slug: string | null
+  role: number
+}
+
+export interface WorkspaceMember {
+  id: number
+  user_id: number
+  username: string
+  role: number
+  joined_at: string
+}
+
+export interface WorkspaceInvite {
+  id: number
+  username: string
+  role: number
+  status: number
+  created_at: string
+  expires_at: string | null
+}
+
 export interface Token {
   id: number
+  workspace_id: number
   user_id: number
   key: string
   name: string
@@ -33,22 +55,26 @@ export interface ModelOverrideEntry {
 
 export interface Channel {
   id: number
+  workspace_id: number
   name: string
   endpoint_url: string
   auth_type: string
   models: string[]
   status: number
+  priority: number
   weight: number
   model_mapping: Record<string, string>
   model_overrides: Record<string, ModelOverrideEntry>
   header_override: Record<string, string>
   body_override: Record<string, unknown>
+  max_concurrency: number
   created_at: string
   updated_at: string
 }
 
 export interface LogEntry {
   id: number
+  workspace_id: number | null
   token_id: number | null
   user_id: number | null
   channel_id: number | null
@@ -67,7 +93,9 @@ export interface LogEntry {
 }
 
 export interface LogQuery {
+  workspace_id?: number
   user_id?: number
+  token_id?: number
   channel_id?: number
   model?: string
   page?: number
@@ -87,11 +115,13 @@ export interface CreateChannelRequest {
   auth_type?: string
   api_key: string
   models: string[]
+  priority?: number
   weight?: number
   model_mapping?: Record<string, string>
   model_overrides?: Record<string, ModelOverrideEntry>
   header_override?: Record<string, string>
   body_override?: Record<string, unknown>
+  max_concurrency?: number
 }
 
 export interface ProviderPresetModel {
@@ -114,6 +144,7 @@ export interface InspectStartEvent {
   type: "start"
   req_id: string
   ts: number
+  workspace_id: number
   user_id: number
   token_id: number
   token_name: string

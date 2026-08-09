@@ -12,6 +12,7 @@ use crate::state::AppState;
 #[derive(Clone, Debug)]
 pub struct TokenAuth {
     pub token_id: i64,
+    pub workspace_id: i64,
     pub user_id: i64,
     pub token_name: String,
     pub model_limits_enabled: bool,
@@ -22,7 +23,6 @@ pub struct TokenAuth {
 pub struct JwtClaims {
     pub sub: i64,
     pub username: String,
-    pub role: i16,
     pub exp: usize,
 }
 
@@ -30,7 +30,8 @@ pub struct JwtClaims {
 pub struct JwtAuth {
     pub user_id: i64,
     pub username: String,
-    pub role: i16,
+    pub workspace_id: i64,
+    pub workspace_role: i16,
 }
 
 fn extract_api_key(headers: &HeaderMap) -> Option<String> {
@@ -83,6 +84,7 @@ pub async fn token_auth(
 
     let auth = TokenAuth {
         token_id: token.id,
+        workspace_id: token.workspace_id,
         user_id: token.user_id,
         token_name: token.name,
         model_limits_enabled: token.model_limits_enabled,
@@ -104,22 +106,65 @@ pub async fn jwt_auth(
     let key = DecodingKey::from_secret(state.config.jwt_secret.as_bytes());
     let token_data = decode::<JwtClaims>(&token, &key, &Validation::default())?;
 
+    let user_id = token_data.claims.sub;
+
+    let workspace_id: i64 = request
+        .headers()
+        .get("x-workspace-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            request
+                .headers()
+                .get("x-workspace")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse().ok())
+        })
+        .ok_or_else(|| AppError::BadRequest("missing X-Workspace-Id header".into()))?;
+
+    let membership =
+        crate::db::workspace::find_membership(&state.pool, workspace_id, user_id)
+            .await?
+            .ok_or_else(|| AppError::Forbidden("not a member of this workspace".into()))?;
+
     let auth = JwtAuth {
-        user_id: token_data.claims.sub,
+        user_id,
         username: token_data.claims.username.clone(),
-        role: token_data.claims.role,
+        workspace_id,
+        workspace_role: membership.1,
     };
 
     request.extensions_mut().insert(auth);
     Ok(next.run(request).await)
 }
 
-pub fn create_jwt(secret: &str, user_id: i64, username: &str, role: i16) -> Result<String, AppError> {
+pub async fn jwt_auth_user_only(
+    State(state): State<AppState>,
+    mut request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    let token = extract_api_key(request.headers())
+        .ok_or_else(|| AppError::Unauthorized("missing authorization".into()))?;
+
+    let key = DecodingKey::from_secret(state.config.jwt_secret.as_bytes());
+    let token_data = decode::<JwtClaims>(&token, &key, &Validation::default())?;
+
+    let auth = JwtAuth {
+        user_id: token_data.claims.sub,
+        username: token_data.claims.username.clone(),
+        workspace_id: 0,
+        workspace_role: 0,
+    };
+
+    request.extensions_mut().insert(auth);
+    Ok(next.run(request).await)
+}
+
+pub fn create_jwt(secret: &str, user_id: i64, username: &str) -> Result<String, AppError> {
     let exp = (Utc::now() + Duration::days(7)).timestamp() as usize;
     let claims = JwtClaims {
         sub: user_id,
         username: username.into(),
-        role,
         exp,
     };
     let key = EncodingKey::from_secret(secret.as_bytes());
