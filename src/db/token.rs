@@ -9,7 +9,6 @@ pub struct TokenRow {
     pub user_id: i64,
     pub key: String,
     pub name: String,
-    pub status: i16,
     pub model_limits_enabled: bool,
     pub model_limits: String,
     pub expired_at: Option<DateTime<Utc>>,
@@ -48,12 +47,6 @@ pub async fn list_by_user(
     .bind(user_id)
     .fetch_all(pool)
     .await
-}
-
-pub async fn list_all(pool: &sqlx::PgPool) -> Result<Vec<TokenRow>, sqlx::Error> {
-    sqlx::query_as::<_, TokenRow>("SELECT * FROM tokens ORDER BY id DESC")
-        .fetch_all(pool)
-        .await
 }
 
 pub async fn create(
@@ -109,20 +102,18 @@ pub async fn update(
     id: i64,
     workspace_id: i64,
     name: &str,
-    status: i16,
     model_limits_enabled: bool,
     model_limits: &str,
     expired_at: Option<DateTime<Utc>>,
 ) -> Result<Option<TokenRow>, sqlx::Error> {
     sqlx::query_as::<_, TokenRow>(
-        r#"UPDATE tokens SET name = $3, status = $4, model_limits_enabled = $5,
-           model_limits = $6, expired_at = $7
+        r#"UPDATE tokens SET name = $3, model_limits_enabled = $4,
+           model_limits = $5, expired_at = $6
            WHERE id = $1 AND workspace_id = $2 RETURNING *"#,
     )
     .bind(id)
     .bind(workspace_id)
     .bind(name)
-    .bind(status)
     .bind(model_limits_enabled)
     .bind(model_limits)
     .bind(expired_at)

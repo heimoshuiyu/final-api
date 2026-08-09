@@ -35,7 +35,6 @@ export interface Token {
   user_id: number
   key: string
   name: string
-  status: number
   model_limits_enabled: boolean
   model_limits: string
   expired_at: string | null

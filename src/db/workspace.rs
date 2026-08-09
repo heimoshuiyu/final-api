@@ -69,16 +69,6 @@ pub async fn find_by_id(pool: &sqlx::PgPool, id: i64) -> Result<Option<Workspace
         .await
 }
 
-pub async fn find_by_slug(
-    pool: &sqlx::PgPool,
-    slug: &str,
-) -> Result<Option<WorkspaceRow>, sqlx::Error> {
-    sqlx::query_as::<_, WorkspaceRow>("SELECT * FROM workspaces WHERE slug = $1")
-        .bind(slug)
-        .fetch_optional(pool)
-        .await
-}
-
 pub async fn list_by_user(
     pool: &sqlx::PgPool,
     user_id: i64,

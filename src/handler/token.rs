@@ -52,7 +52,6 @@ pub async fn create(
         "workspace_id": token.workspace_id,
         "key": token.key,
         "name": token.name,
-        "status": token.status,
         "model_limits_enabled": token.model_limits_enabled,
         "model_limits": token.model_limits,
         "expired_at": token.expired_at,
@@ -75,7 +74,6 @@ pub async fn delete(
 #[derive(Deserialize)]
 pub struct UpdateToken {
     pub name: Option<String>,
-    pub status: Option<i16>,
     pub model_limits_enabled: Option<bool>,
     pub model_limits: Option<String>,
     pub expired_at: Option<DateTime<Utc>>,
@@ -101,7 +99,6 @@ pub async fn update(
         id,
         auth.workspace_id,
         req.name.as_deref().unwrap_or(&existing.name),
-        req.status.unwrap_or(existing.status),
         req.model_limits_enabled.unwrap_or(existing.model_limits_enabled),
         req.model_limits.as_deref().unwrap_or(&existing.model_limits),
         req.expired_at.or(existing.expired_at),

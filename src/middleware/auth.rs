@@ -29,7 +29,6 @@ pub struct JwtClaims {
 #[derive(Clone, Debug)]
 pub struct JwtAuth {
     pub user_id: i64,
-    pub username: String,
     pub workspace_id: i64,
     pub workspace_role: i16,
 }
@@ -61,10 +60,6 @@ pub async fn token_auth(
 
     let token = crate::db::token::find_by_key(&state.pool, &key).await?
         .ok_or_else(|| AppError::Unauthorized("invalid API key".into()))?;
-
-    if token.status != 1 {
-        return Err(AppError::Forbidden("token disabled".into()));
-    }
 
     if let Some(expired) = token.expired_at {
         if expired < Utc::now() {
@@ -129,7 +124,6 @@ pub async fn jwt_auth(
 
     let auth = JwtAuth {
         user_id,
-        username: token_data.claims.username.clone(),
         workspace_id,
         workspace_role: membership.1,
     };
@@ -151,7 +145,6 @@ pub async fn jwt_auth_user_only(
 
     let auth = JwtAuth {
         user_id: token_data.claims.sub,
-        username: token_data.claims.username.clone(),
         workspace_id: 0,
         workspace_role: 0,
     };

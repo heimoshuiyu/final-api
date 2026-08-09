@@ -39,13 +39,6 @@ pub async fn find_by_model(
     .await
 }
 
-pub async fn find_by_id(pool: &sqlx::PgPool, id: i64) -> Result<Option<ChannelRow>, sqlx::Error> {
-    sqlx::query_as::<_, ChannelRow>("SELECT * FROM channels WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-}
-
 pub async fn list_by_workspace(
     pool: &sqlx::PgPool,
     workspace_id: i64,

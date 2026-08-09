@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Table,
@@ -136,7 +135,6 @@ export function Tokens() {
                 <TableRow className="border-border/50">
                   <TableHead className="text-xs uppercase tracking-wider">名称</TableHead>
                   <TableHead className="text-xs uppercase tracking-wider">密钥</TableHead>
-                  <TableHead className="text-xs uppercase tracking-wider">状态</TableHead>
                   <TableHead className="text-xs uppercase tracking-wider">创建时间</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -162,9 +160,6 @@ export function Tokens() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <StatusBadge status={token.status} />
-                      </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {new Date(token.created_at).toLocaleDateString("zh-CN")}
                       </TableCell>
@@ -187,22 +182,5 @@ export function Tokens() {
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-function StatusBadge({ status }: { status: number }) {
-  if (status === 1) {
-    return (
-      <Badge variant="secondary" className="gap-1.5 bg-chart-2/10 text-chart-2">
-        <span className="size-1.5 rounded-full bg-chart-2" />
-        活跃
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant="secondary" className="gap-1.5">
-      <span className="size-1.5 rounded-full bg-muted-foreground" />
-      停用
-    </Badge>
   )
 }

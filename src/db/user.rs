@@ -30,12 +30,6 @@ pub async fn find_by_username(
         .await
 }
 
-pub async fn list_all(pool: &sqlx::PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
-    sqlx::query_as::<_, UserRow>("SELECT * FROM users ORDER BY id DESC")
-        .fetch_all(pool)
-        .await
-}
-
 pub async fn create(
     pool: &sqlx::PgPool,
     username: &str,
@@ -48,17 +42,4 @@ pub async fn create(
     .bind(password_hash)
     .fetch_one(pool)
     .await
-}
-
-pub async fn update_status(
-    pool: &sqlx::PgPool,
-    id: i64,
-    status: i16,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE users SET status = $2 WHERE id = $1")
-        .bind(id)
-        .bind(status)
-        .execute(pool)
-        .await?;
-    Ok(())
 }
