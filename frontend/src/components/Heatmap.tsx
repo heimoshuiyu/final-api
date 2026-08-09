@@ -16,6 +16,8 @@ const HOURLY_RE = / \d{2}:00$/
 interface Cell {
   v: number
   req: number
+  cached: number
+  prompt: number
 }
 
 interface DayColumn {
@@ -26,6 +28,8 @@ interface DayColumn {
 interface DayCell {
   date: string
   value: number
+  cached: number
+  prompt: number
   inRange: boolean
 }
 
@@ -33,7 +37,7 @@ const CELL_CLASS =
   "rounded-[3px] border border-border/40 outline-none transition-all duration-100 hover:scale-110 hover:border-primary/60 data-[level=0]:bg-muted/55"
 
 function newCell(): Cell {
-  return { v: 0, req: 0 }
+  return { v: 0, req: 0, cached: 0, prompt: 0 }
 }
 
 function pad2(n: number): string {
@@ -91,23 +95,73 @@ export type MetricKey =
   | "cache_creation_tokens"
   | "request_count"
   | "cost"
+  | "cache_hit_rate"
+  | "runtime"
+  | "runtime_dedup"
 
-export const METRICS: { value: MetricKey; label: string; color: string; isCost?: boolean }[] = [
+interface MetricDef {
+  value: MetricKey
+  label: string
+  color: string
+  isCost?: boolean
+  isPercent?: boolean
+  isDuration?: boolean
+}
+
+export const METRICS: MetricDef[] = [
   { value: "total_tokens", label: "总 Token", color: "var(--chart-1)" },
   { value: "prompt_tokens", label: "输入", color: "var(--chart-1)" },
   { value: "completion_tokens", label: "输出", color: "var(--chart-2)" },
   { value: "cached_tokens", label: "缓存命中", color: "var(--chart-3)" },
   { value: "cache_creation_tokens", label: "缓存写入", color: "var(--chart-4)" },
+  { value: "cache_hit_rate", label: "缓存命中率", color: "var(--chart-5)", isPercent: true },
   { value: "request_count", label: "请求数", color: "var(--chart-5)" },
+  { value: "runtime", label: "时间", color: "var(--chart-4)", isDuration: true },
+  { value: "runtime_dedup", label: "时间（去重）", color: "var(--chart-2)", isDuration: true },
   { value: "cost", label: "费用", color: "var(--chart-3)", isCost: true },
 ]
 
+export function metricDef(key: MetricKey): MetricDef | undefined {
+  return METRICS.find((m) => m.value === key)
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function getMetricValue(d: any, metric: MetricKey): number {
+  if (metric === "cache_hit_rate") {
+    const p = d.prompt_tokens ?? 0
+    return p > 0 ? ((d.cached_tokens ?? 0) / p) * 100 : 0
+  }
+  return (d[metric] as number) ?? 0
+}
+
+function resolveMetric(metric: MetricKey, rawValue: number, cached: number, prompt: number): number {
+  if (metric === "cache_hit_rate") {
+    return prompt > 0 ? (cached / prompt) * 100 : 0
+  }
+  return rawValue
+}
+
+function fmtDuration(ms: number): string {
+  if (ms < 1000) return Math.round(ms) + "ms"
+  const s = ms / 1000
+  if (s < 60) return s.toFixed(1) + "s"
+  const m = Math.floor(s / 60)
+  const rs = Math.round(s % 60)
+  if (m < 60) return `${m}m${rs}s`
+  const h = Math.floor(m / 60)
+  const rm = m % 60
+  return `${h}h${rm}m`
+}
+
 export function metricLabel(key: MetricKey): string {
-  return METRICS.find((m) => m.value === key)?.label ?? key
+  return metricDef(key)?.label ?? key
 }
 
 export function metricFmt(key: MetricKey, n: number): string {
-  if (key === "cost") return fmtCost(n)
+  const def = metricDef(key)
+  if (def?.isPercent) return n.toFixed(1) + "%"
+  if (def?.isDuration) return fmtDuration(n)
+  if (def?.isCost) return fmtCost(n)
   return fmtCompact(n)
 }
 
@@ -140,8 +194,16 @@ export function Heatmap({
         dateOrder.push(date)
       }
       const cell = blocks[blockIndex]
-      cell.v += d[metric]
+      cell.v += getMetricValue(d, metric)
+      cell.cached += d.cached_tokens ?? 0
+      cell.prompt += d.prompt_tokens ?? 0
       cell.req += d.request_count
+    }
+
+    for (const blocks of byDate.values()) {
+      for (const cell of blocks) {
+        cell.v = resolveMetric(metric, cell.v, cell.cached, cell.prompt)
+      }
     }
 
     const columns = dateOrder.sort().map((date) => ({
@@ -165,12 +227,23 @@ export function Heatmap({
     const daily = days.filter((d) => !HOURLY_RE.test(d.bucket))
     if (!daily.length) return { weeks: [] as DayCell[][], monthLabels: [] as string[], weekdayLabels: WEEKDAY_LABELS_ZH, maxValue: 0, total: 0 }
 
-    const valueMap = new Map<string, number>()
+    const dataMap = new Map<string, { v: number; cached: number; prompt: number }>()
     for (const d of daily) {
-      valueMap.set(d.bucket, d[metric])
+      const prev = dataMap.get(d.bucket)
+      const v = getMetricValue(d, metric)
+      const cached = d.cached_tokens ?? 0
+      const prompt = d.prompt_tokens ?? 0
+      dataMap.set(d.bucket, {
+        v: (prev?.v ?? 0) + v,
+        cached: (prev?.cached ?? 0) + cached,
+        prompt: (prev?.prompt ?? 0) + prompt,
+      })
+    }
+    for (const [, val] of dataMap) {
+      val.v = resolveMetric(metric, val.v, val.cached, val.prompt)
     }
 
-    const sorted = [...valueMap.keys()].sort()
+    const sorted = [...dataMap.keys()].sort()
     const minDate = new Date(`${sorted[0]}T00:00:00`)
     const maxDate = new Date(`${sorted[sorted.length - 1]}T00:00:00`)
 
@@ -186,7 +259,14 @@ export function Heatmap({
       for (let i = 0; i < 7; i++) {
         const ds = toISODate(cur)
         const inRange = cur >= minDate && cur <= maxDate
-        week.push({ date: ds, value: valueMap.get(ds) ?? 0, inRange })
+        const data = dataMap.get(ds)
+        week.push({
+          date: ds,
+          value: data?.v ?? 0,
+          cached: data?.cached ?? 0,
+          prompt: data?.prompt ?? 0,
+          inRange,
+        })
         cur.setDate(cur.getDate() + 1)
       }
       weeks.push(week)

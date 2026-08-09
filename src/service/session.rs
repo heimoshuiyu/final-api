@@ -4,28 +4,22 @@ use serde_json::Value;
 const SEED_PREFIX: &str = "compat_cs_";
 
 pub fn derive_sticky_id(headers: &HeaderMap, body: &Value, token_id: i64) -> String {
-    if let Some(id) = headers
+    let raw = headers
         .get("x-session-id")
         .or_else(|| headers.get("x-opencode-session"))
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
-    {
-        return id.to_string();
-    }
+        .map(|s| s.to_string())
+        .or_else(|| {
+            body.get("prompt_cache_key")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.trim().to_string())
+        })
+        .or_else(|| content_session_seed(body))
+        .unwrap_or_else(|| token_id.to_string());
 
-    if let Some(key) = body
-        .get("prompt_cache_key")
-        .and_then(|v| v.as_str())
-        .filter(|s| !s.is_empty())
-    {
-        return key.trim().to_string();
-    }
-
-    if let Some(seed) = content_session_seed(body) {
-        return format!("{}{:016x}", SEED_PREFIX, fnv1a_hash(&seed));
-    }
-
-    token_id.to_string()
+    format!("{}{:016x}", SEED_PREFIX, fnv1a_hash(&raw))
 }
 
 fn content_session_seed(body: &Value) -> Option<String> {
@@ -97,6 +91,32 @@ fn content_session_seed(body: &Value) -> Option<String> {
             if item.get("role").and_then(|v| v.as_str()) == Some("user") {
                 if let Some(content) = item.get("content") {
                     let text = extract_text(content);
+                    if !text.is_empty() {
+                        seed.push_str("|user=");
+                        seed.push_str(&text);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(si) = body
+        .get("system_instruction")
+        .or_else(|| body.get("systemInstruction"))
+    {
+        let text = extract_text(si);
+        if !text.is_empty() {
+            seed.push_str("|system=");
+            seed.push_str(&text);
+        }
+    }
+
+    if let Some(contents) = body.get("contents").and_then(|v| v.as_array()) {
+        for content in contents {
+            if content.get("role").and_then(|v| v.as_str()) == Some("user") {
+                if let Some(parts) = content.get("parts") {
+                    let text = extract_text(parts);
                     if !text.is_empty() {
                         seed.push_str("|user=");
                         seed.push_str(&text);

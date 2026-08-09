@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
+use std::collections::HashMap;
 
 #[derive(Debug, FromRow, Serialize)]
 pub struct StatsSummary {
@@ -12,9 +13,11 @@ pub struct StatsSummary {
     pub cache_creation_tokens: i64,
     pub total_cost: f64,
     pub avg_duration_ms: f64,
+    pub total_runtime: i64,
+    pub total_runtime_dedup: i64,
 }
 
-#[derive(Debug, FromRow, Serialize)]
+#[derive(Debug, FromRow, Serialize, Clone)]
 pub struct TimeSeriesPoint {
     pub bucket: String,
     pub request_count: i64,
@@ -24,6 +27,8 @@ pub struct TimeSeriesPoint {
     pub cached_tokens: i64,
     pub cache_creation_tokens: i64,
     pub cost: f64,
+    pub runtime: i64,
+    pub runtime_dedup: i64,
 }
 
 #[derive(Debug, FromRow, Serialize)]
@@ -36,6 +41,7 @@ pub struct ModelBreakdown {
     pub cached_tokens: i64,
     pub cache_creation_tokens: i64,
     pub cost: f64,
+    pub runtime: i64,
 }
 
 #[derive(Debug, FromRow, Serialize)]
@@ -56,6 +62,13 @@ pub struct UserBreakdown {
     pub cost: f64,
 }
 
+#[derive(Debug, FromRow)]
+pub struct IntervalRow {
+    pub bucket: String,
+    pub start_epoch: f64,
+    pub end_epoch: f64,
+}
+
 pub fn since_ts(range: Option<i64>) -> Option<DateTime<Utc>> {
     match range {
         Some(7) => Some(Utc::now() - chrono::Duration::hours(168)),
@@ -67,9 +80,40 @@ pub fn since_ts(range: Option<i64>) -> Option<DateTime<Utc>> {
     }
 }
 
-/// Heatmap uses 2-hour blocks for ranges <= 90 days, daily for longer ranges.
 pub fn heatmap_is_block(range: Option<i64>) -> bool {
     matches!(range, Some(7) | Some(30) | Some(90))
+}
+
+/// Merge overlapping intervals per bucket, return total deduped ms per bucket.
+pub fn merge_intervals(rows: &[IntervalRow]) -> HashMap<String, i64> {
+    let mut by_bucket: HashMap<String, Vec<(f64, f64)>> = HashMap::new();
+    for r in rows {
+        by_bucket
+            .entry(r.bucket.clone())
+            .or_default()
+            .push((r.start_epoch, r.end_epoch));
+    }
+
+    let mut result = HashMap::new();
+    for (bucket, intervals) in &mut by_bucket {
+        if intervals.is_empty() {
+            result.insert(bucket.clone(), 0);
+            continue;
+        }
+        intervals.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        let mut merged = vec![intervals[0]];
+        for &(start, end) in &intervals[1..] {
+            let last = merged.last_mut().unwrap();
+            if start <= last.1 {
+                last.1 = last.1.max(end);
+            } else {
+                merged.push((start, end));
+            }
+        }
+        let total: f64 = merged.iter().map(|(s, e)| e - s).sum();
+        result.insert(bucket.clone(), total as i64);
+    }
+    result
 }
 
 pub async fn summary(
@@ -87,7 +131,9 @@ pub async fn summary(
             COALESCE(SUM(COALESCE(cached_tokens, 0)), 0)::bigint as cached_tokens,
             COALESCE(SUM(COALESCE(cache_creation_tokens, 0)), 0)::bigint as cache_creation_tokens,
             COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as total_cost,
-            COALESCE(AVG(duration_ms), 0)::float8 as avg_duration_ms
+            COALESCE(AVG(duration_ms), 0)::float8 as avg_duration_ms,
+            COALESCE(SUM(duration_ms), 0)::bigint as total_runtime,
+            0::bigint as total_runtime_dedup
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
@@ -101,7 +147,6 @@ pub async fn summary(
     .await
 }
 
-/// Daily time series (always daily granularity for trend chart).
 pub async fn timeseries_daily(
     pool: &sqlx::PgPool,
     workspace_id: i64,
@@ -117,7 +162,9 @@ pub async fn timeseries_daily(
             COALESCE(SUM(COALESCE(total_tokens, 0)), 0)::bigint as total_tokens,
             COALESCE(SUM(COALESCE(cached_tokens, 0)), 0)::bigint as cached_tokens,
             COALESCE(SUM(COALESCE(cache_creation_tokens, 0)), 0)::bigint as cache_creation_tokens,
-            COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as cost
+            COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as cost,
+            COALESCE(SUM(duration_ms), 0)::bigint as runtime,
+            0::bigint as runtime_dedup
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
@@ -132,7 +179,6 @@ pub async fn timeseries_daily(
     .await
 }
 
-/// 2-hour block time series (for heatmap when range <= 90 days).
 pub async fn timeseries_2h(
     pool: &sqlx::PgPool,
     workspace_id: i64,
@@ -148,13 +194,65 @@ pub async fn timeseries_2h(
             COALESCE(SUM(COALESCE(total_tokens, 0)), 0)::bigint as total_tokens,
             COALESCE(SUM(COALESCE(cached_tokens, 0)), 0)::bigint as cached_tokens,
             COALESCE(SUM(COALESCE(cache_creation_tokens, 0)), 0)::bigint as cache_creation_tokens,
-            COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as cost
+            COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as cost,
+            COALESCE(SUM(duration_ms), 0)::bigint as runtime,
+            0::bigint as runtime_dedup
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
            AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            GROUP BY 1 ORDER BY 1"#,
+    )
+    .bind(workspace_id)
+    .bind(user_id)
+    .bind(since)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn fetch_intervals_daily(
+    pool: &sqlx::PgPool,
+    workspace_id: i64,
+    user_id: Option<i64>,
+    since: Option<DateTime<Utc>>,
+) -> Result<Vec<IntervalRow>, sqlx::Error> {
+    sqlx::query_as::<_, IntervalRow>(
+        r#"SELECT
+            to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as bucket,
+            (EXTRACT(EPOCH FROM (created_at - (duration_ms / 1000.0) * interval '1 second'))::float8) as start_epoch,
+            (EXTRACT(EPOCH FROM created_at)::float8) as end_epoch
+           FROM request_logs
+           WHERE workspace_id = $1
+           AND status_code = 200
+           AND duration_ms > 0
+           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
+    )
+    .bind(workspace_id)
+    .bind(user_id)
+    .bind(since)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn fetch_intervals_2h(
+    pool: &sqlx::PgPool,
+    workspace_id: i64,
+    user_id: Option<i64>,
+    since: Option<DateTime<Utc>>,
+) -> Result<Vec<IntervalRow>, sqlx::Error> {
+    sqlx::query_as::<_, IntervalRow>(
+        r#"SELECT
+            to_char(date_trunc('hour', created_at) - (EXTRACT(hour FROM created_at)::int % 2) * interval '1 hour', 'YYYY-MM-DD HH24:00') as bucket,
+            (EXTRACT(EPOCH FROM (created_at - (duration_ms / 1000.0) * interval '1 second'))::float8) as start_epoch,
+            (EXTRACT(EPOCH FROM created_at)::float8) as end_epoch
+           FROM request_logs
+           WHERE workspace_id = $1
+           AND status_code = 200
+           AND duration_ms > 0
+           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
     .bind(user_id)
@@ -178,7 +276,8 @@ pub async fn by_model(
             COALESCE(SUM(COALESCE(total_tokens, 0)), 0)::bigint as total_tokens,
             COALESCE(SUM(COALESCE(cached_tokens, 0)), 0)::bigint as cached_tokens,
             COALESCE(SUM(COALESCE(cache_creation_tokens, 0)), 0)::bigint as cache_creation_tokens,
-            COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as cost
+            COALESCE(SUM(COALESCE(cost, 0)), 0)::float8 as cost,
+            COALESCE(SUM(duration_ms), 0)::bigint as runtime
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
@@ -243,4 +342,3 @@ pub async fn by_user(
     .fetch_all(pool)
     .await
 }
-

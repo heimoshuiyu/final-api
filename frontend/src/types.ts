@@ -232,6 +232,8 @@ export interface StatsSummary {
   cache_creation_tokens: number
   total_cost: number
   avg_duration_ms: number
+  total_runtime: number
+  total_runtime_dedup: number
 }
 
 export interface TimeSeriesPoint {
@@ -243,6 +245,8 @@ export interface TimeSeriesPoint {
   cached_tokens: number
   cache_creation_tokens: number
   cost: number
+  runtime: number
+  runtime_dedup: number
 }
 
 export interface ModelBreakdown {
@@ -254,6 +258,7 @@ export interface ModelBreakdown {
   cached_tokens: number
   cache_creation_tokens: number
   cost: number
+  runtime: number
 }
 
 export interface ChannelBreakdown {

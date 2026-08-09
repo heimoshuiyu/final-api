@@ -53,12 +53,42 @@ pub async fn stats(
             Box::pin(db::stats::timeseries_daily(&state.pool, workspace_id, user_id, since))
         };
 
-    let (summary, days, heatmap, models) = tokio::try_join!(
+    let (mut summary, mut days, mut heatmap, models, daily_intervals) = tokio::try_join!(
         db::stats::summary(&state.pool, workspace_id, user_id, since),
         db::stats::timeseries_daily(&state.pool, workspace_id, user_id, since),
         heatmap_fut,
         db::stats::by_model(&state.pool, workspace_id, user_id, since),
+        db::stats::fetch_intervals_daily(&state.pool, workspace_id, user_id, since),
     )?;
+
+    // Compute runtime_dedup for daily time series + summary total
+    let daily_dedup = db::stats::merge_intervals(&daily_intervals);
+    let total_dedup: i64 = daily_dedup.values().sum();
+    for p in &mut days {
+        if let Some(v) = daily_dedup.get(&p.bucket) {
+            p.runtime_dedup = *v * 1000; // epoch seconds → ms
+        }
+    }
+    summary.total_runtime_dedup = total_dedup * 1000;
+
+    // Compute runtime_dedup for heatmap
+    if heatmap_block {
+        let block_intervals = db::stats::fetch_intervals_2h(
+            &state.pool, workspace_id, user_id, since,
+        ).await?;
+        let block_dedup = db::stats::merge_intervals(&block_intervals);
+        for p in &mut heatmap {
+            if let Some(v) = block_dedup.get(&p.bucket) {
+                p.runtime_dedup = *v * 1000;
+            }
+        }
+    } else {
+        for p in &mut heatmap {
+            if let Some(v) = daily_dedup.get(&p.bucket) {
+                p.runtime_dedup = *v * 1000;
+            }
+        }
+    }
 
     let (channels, users) = if scope_workspace {
         let (ch, us) = tokio::try_join!(

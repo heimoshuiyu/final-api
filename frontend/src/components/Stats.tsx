@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react"
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   BarChart,
   Bar,
   PieChart,
@@ -20,7 +21,7 @@ import type {
   ModelBreakdown,
   WorkspaceMember,
 } from "../types"
-import { Heatmap, METRICS, metricLabel, metricFmt, type MetricKey } from "./Heatmap"
+import { Heatmap, METRICS, metricLabel, metricFmt, getMetricValue, type MetricKey } from "./Heatmap"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +39,7 @@ import {
   Timer,
   TrendingUp,
   RefreshCw,
+  DatabaseZap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -88,21 +90,40 @@ interface ChartTooltipProps {
   label?: string
 }
 
-function TokenTooltip({ active, payload, label }: ChartTooltipProps) {
+function TrendTooltip({
+  active,
+  payload,
+  label,
+  metric,
+}: ChartTooltipProps & { metric: MetricKey }) {
   if (!active || !payload?.length) return null
-  const reversed = [...payload].reverse()
+  const metricEntry = payload.find((e) => e.dataKey !== "cost")
+  const costEntry = payload.find((e) => e.dataKey === "cost")
   return (
     <div className="glass-panel glow-border rounded-lg px-3 py-2 text-xs shadow-lg">
       <p className="mb-1 font-medium text-foreground">{label}</p>
-      {reversed.map((e) => (
-        <div key={e.dataKey} className="flex items-center justify-between gap-4">
+      {metricEntry && (
+        <div className="flex items-center justify-between gap-4">
           <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-sm" style={{ background: e.color }} />
-            {e.name}
+            <span className="size-2 rounded-sm" style={{ background: metricEntry.color }} />
+            {metricLabel(metric)}
           </span>
-          <span className="font-mono text-muted-foreground">{fmtCompact(e.value)}</span>
+          <span className="font-mono text-muted-foreground">
+            {metricFmt(metric, metricEntry.value)}
+          </span>
         </div>
-      ))}
+      )}
+      {costEntry && (
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="size-2 rounded-sm" style={{ background: costEntry.color }} />
+            费用
+          </span>
+          <span className="font-mono text-muted-foreground">
+            {fmtCost(costEntry.value)}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -173,7 +194,11 @@ export function Stats({
   const channels = data?.channels ?? []
   const users = data?.users ?? []
 
-  const topModels = [...models].sort((a, b) => (b[metric] ?? 0) - (a[metric] ?? 0)).slice(0, 8)
+  const modelData = models.map((m) => ({
+    ...m,
+    cache_hit_rate: m.prompt_tokens > 0 ? (m.cached_tokens / m.prompt_tokens) * 100 : 0,
+  }))
+  const topModels = [...modelData].sort((a, b) => getMetricValue(b, metric) - getMetricValue(a, metric)).slice(0, 8)
   const costByModel = models
     .filter((m) => m.cost > 0)
     .slice(0, 8)
@@ -249,7 +274,7 @@ export function Stats({
       )}
 
       {/* Summary Cards */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           label="总请求"
           value={summary ? fmtCompact(summary.request_count) : "—"}
@@ -267,12 +292,20 @@ export function Stats({
           delay={60}
         />
         <StatCard
+          label="缓存命中"
+          value={summary ? (summary.prompt_tokens > 0 ? ((summary.cached_tokens / summary.prompt_tokens) * 100).toFixed(1) + "%" : "0%") : "—"}
+          sub={summary ? `${fmtCompact(summary.cached_tokens)} / ${fmtCompact(summary.prompt_tokens)}` : ""}
+          icon={DatabaseZap}
+          color="text-chart-5"
+          delay={120}
+        />
+        <StatCard
           label="总费用"
           value={summary ? fmtCost(summary.total_cost) : "—"}
           sub=""
           icon={Coins}
           color="text-chart-3"
-          delay={120}
+          delay={180}
         />
         <StatCard
           label="平均延迟"
@@ -280,22 +313,24 @@ export function Stats({
           sub=""
           icon={Timer}
           color="text-chart-4"
-          delay={180}
+          delay={240}
         />
       </div>
 
       {/* Heatmap */}
       <Heatmap days={heatmap} metric={metric} loading={loading} />
 
-      {/* Token Trend Chart */}
+      {/* Trend Chart — selected metric (left axis) + cost (right axis) */}
       <Card className="glass-panel glow-border mt-6 border-0 animate-fade-in stagger-3">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <TrendingUp className="size-4 text-chart-1" />
-            Token 用量趋势
+            {metricLabel(metric)} 趋势
           </CardTitle>
           <CardDescription className="text-xs">
-            按天 · 输入 / 输出 / 缓存命中 / 缓存写入
+            按天 · <span style={{ color: "var(--chart-1)" }}>{metricLabel(metric)}</span>
+            {" / "}
+            <span style={{ color: "var(--chart-3)" }}>费用</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -305,23 +340,21 @@ export function Stats({
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={days} margin={{ top: 5, right: 10, bottom: 0, left: -10 }}>
+              <ComposedChart
+                data={
+                  metric === "cache_hit_rate"
+                    ? days.map((d) => ({
+                        ...d,
+                        __cache_hit_rate: d.prompt_tokens > 0 ? (d.cached_tokens / d.prompt_tokens) * 100 : 0,
+                      }))
+                    : days
+                }
+                margin={{ top: 5, right: 10, bottom: 0, left: -10 }}
+              >
                 <defs>
-                  <linearGradient id="g-prompt" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="g-trend" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--chart-1)" stopOpacity={0.4} />
                     <stop offset="95%" stopColor="var(--chart-1)" stopOpacity={0.03} />
-                  </linearGradient>
-                  <linearGradient id="g-completion" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0.03} />
-                  </linearGradient>
-                  <linearGradient id="g-cached" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0.03} />
-                  </linearGradient>
-                  <linearGradient id="g-cachecreate" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-4)" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="var(--chart-4)" stopOpacity={0.03} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
@@ -334,55 +367,46 @@ export function Stats({
                   tickFormatter={(v: string) => v.slice(5)}
                 />
                 <YAxis
+                  yAxisId="left"
                   tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={fmtCompact}
+                  tickFormatter={(v: number) => metricFmt(metric, v)}
                   width={50}
                 />
-                <Tooltip content={<TokenTooltip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: 11 }}
-                  iconType="circle"
-                  iconSize={8}
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tick={{ fontSize: 10, fill: "var(--chart-3)" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => "$" + fmtCompact(v)}
+                  width={50}
                 />
+                <Tooltip content={<TrendTooltip metric={metric} />} />
                 <Area
+                  yAxisId="left"
                   type="monotone"
-                  dataKey="prompt_tokens"
-                  name="输入"
-                  stackId="1"
+                  dataKey={metric === "cache_hit_rate" ? "__cache_hit_rate" : metric}
+                  name={metricLabel(metric)}
                   stroke="var(--chart-1)"
-                  fill="url(#g-prompt)"
-                  strokeWidth={1.5}
+                  fill="url(#g-trend)"
+                  strokeWidth={2}
+                  dot={days.length <= 30 ? { r: 2, fill: "var(--chart-1)" } : false}
+                  activeDot={{ r: 4 }}
                 />
-                <Area
+                <Line
+                  yAxisId="right"
                   type="monotone"
-                  dataKey="completion_tokens"
-                  name="输出"
-                  stackId="1"
-                  stroke="var(--chart-2)"
-                  fill="url(#g-completion)"
-                  strokeWidth={1.5}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cached_tokens"
-                  name="缓存命中"
-                  stackId="1"
+                  dataKey="cost"
+                  name="费用"
                   stroke="var(--chart-3)"
-                  fill="url(#g-cached)"
                   strokeWidth={1.5}
+                  strokeDasharray="5 3"
+                  dot={false}
+                  activeDot={{ r: 3, fill: "var(--chart-3)" }}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="cache_creation_tokens"
-                  name="缓存写入"
-                  stackId="1"
-                  stroke="var(--chart-4)"
-                  fill="url(#g-cachecreate)"
-                  strokeWidth={1.5}
-                />
-              </AreaChart>
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </CardContent>
@@ -414,7 +438,7 @@ export function Stats({
                     tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={metric === "cost" ? fmtCost : fmtCompact}
+                    tickFormatter={(v: number) => metricFmt(metric, v)}
                   />
                   <YAxis
                     type="category"
@@ -451,6 +475,7 @@ export function Stats({
                     name={metricLabel(metric)}
                     radius={[0, 4, 4, 0]}
                     fill="var(--chart-1)"
+                    label={{ position: "right", fontSize: 10, fill: "var(--muted-foreground)", formatter: (v: unknown) => metricFmt(metric, Number(v)) }}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -478,9 +503,11 @@ export function Stats({
                     nameKey="name"
                     cx="50%"
                     cy="50%"
-                    outerRadius={70}
-                    innerRadius={40}
+                    outerRadius={60}
+                    innerRadius={34}
                     paddingAngle={2}
+                    label={((props: { value?: number }) => fmtCost(props.value ?? 0))}
+                    labelLine={false}
                   >
                     {costByModel.map((_, i) => (
                       <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -498,58 +525,6 @@ export function Stats({
           </CardContent>
         </Card>
       </div>
-
-      {/* Cost Trend Chart */}
-      {days.length > 0 && days.some((d) => d.cost > 0) && (
-        <Card className="glass-panel glow-border mt-6 border-0 animate-fade-in stagger-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Coins className="size-4 text-chart-3" />
-              费用趋势
-            </CardTitle>
-            <CardDescription className="text-xs">
-              按天 · 累计 {fmtCost(summary?.total_cost ?? 0)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={days} margin={{ top: 5, right: 10, bottom: 0, left: -10 }}>
-                <defs>
-                  <linearGradient id="g-cost" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--chart-3)" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="var(--chart-3)" stopOpacity={0.03} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.3} />
-                <XAxis
-                  dataKey="bucket"
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={Math.max(0, Math.floor(days.length / 12))}
-                  tickFormatter={(v: string) => v.slice(5)}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: number) => "$" + fmtCompact(v)}
-                  width={50}
-                />
-                <Tooltip content={<CostTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="cost"
-                  name="费用"
-                  stroke="var(--chart-3)"
-                  fill="url(#g-cost)"
-                  strokeWidth={1.5}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Breakdown Tables (workspace scope only) */}
       {scope === "workspace" && (

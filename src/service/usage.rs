@@ -167,15 +167,15 @@ impl UsageExtractor {
         match event_type {
             "message_start" => {
                 if let Some(usage) = val.pointer("/message/usage").or_else(|| val.get("usage")) {
-                    self.usage.prompt_tokens = usage.get("input_tokens").and_then(|v| v.as_i64());
-                    self.usage.cached_tokens = usage
-                        .get("cache_read_input_tokens")
-                        .and_then(|v| v.as_i64());
-                    self.usage.cache_creation_tokens = usage
-                        .get("cache_creation_input_tokens")
-                        .and_then(|v| v.as_i64());
+                    let input = usage.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let cached = usage.get("cache_read_input_tokens").and_then(|v| v.as_i64());
+                    let cache_create = usage.get("cache_creation_input_tokens").and_then(|v| v.as_i64());
+                    let total_input = input + cached.unwrap_or(0) + cache_create.unwrap_or(0);
+                    self.usage.prompt_tokens = Some(total_input);
+                    self.usage.cached_tokens = cached;
+                    self.usage.cache_creation_tokens = cache_create;
                     if self.usage.total_tokens.is_none() {
-                        self.usage.total_tokens = usage.get("input_tokens").and_then(|v| v.as_i64());
+                        self.usage.total_tokens = Some(total_input);
                     }
                 }
             }
@@ -334,17 +334,17 @@ impl UsageExtractor {
                 match self.format {
                     UsageFormat::Messages => {
                         if let Some(usage) = val.get("usage") {
-                            self.usage.prompt_tokens = usage.get("input_tokens").and_then(|v| v.as_i64());
+                            let input = usage.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+                            let cached = usage.get("cache_read_input_tokens").and_then(|v| v.as_i64());
+                            let cache_create = usage.get("cache_creation_input_tokens").and_then(|v| v.as_i64());
+                            let total_input = input + cached.unwrap_or(0) + cache_create.unwrap_or(0);
+                            self.usage.prompt_tokens = Some(total_input);
                             self.usage.completion_tokens = usage.get("output_tokens").and_then(|v| v.as_i64());
-                            self.usage.cached_tokens = usage
-                                .get("cache_read_input_tokens")
-                                .and_then(|v| v.as_i64());
-                            self.usage.cache_creation_tokens = usage
-                                .get("cache_creation_input_tokens")
-                                .and_then(|v| v.as_i64());
-                            let input = self.usage.prompt_tokens.unwrap_or(0);
-                            let output = self.usage.completion_tokens.unwrap_or(0);
-                            self.usage.total_tokens = Some(input + output);
+                            self.usage.cached_tokens = cached;
+                            self.usage.cache_creation_tokens = cache_create;
+                            let inp = self.usage.prompt_tokens.unwrap_or(0);
+                            let outp = self.usage.completion_tokens.unwrap_or(0);
+                            self.usage.total_tokens = Some(inp + outp);
                         }
                     }
                     UsageFormat::Responses => {
