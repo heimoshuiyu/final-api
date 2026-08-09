@@ -3,6 +3,7 @@ pub mod inspect;
 pub mod log;
 pub mod preset;
 pub mod relay;
+pub mod stats;
 pub mod token;
 pub mod user;
 pub mod workspace;

@@ -27,6 +27,8 @@ import {
   ScrollText,
   Activity,
   Users,
+  BarChart3,
+  Globe,
   Sun,
   Moon,
   LogOut,
@@ -37,6 +39,7 @@ import { fetchWorkspaces, createWorkspace } from "../api"
 
 const NAV_ITEMS = [
   { path: "/", label: "概览", icon: LayoutDashboard },
+  { path: "/stats", label: "统计", icon: BarChart3 },
   { path: "/tokens", label: "令牌", icon: KeyRound },
   { path: "/logs", label: "请求", icon: ScrollText },
   { path: "/inspect", label: "实时", icon: Activity },
@@ -45,6 +48,7 @@ const NAV_ITEMS = [
 const ADMIN_NAV = [
   { path: "/channels", label: "渠道", icon: Network },
   { path: "/members", label: "成员", icon: Users },
+  { path: "/ws-stats", label: "工作区统计", icon: Globe },
   { path: "/monitor", label: "工作区监控", icon: Activity },
 ] as const
 

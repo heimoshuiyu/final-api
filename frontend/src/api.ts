@@ -5,6 +5,7 @@ import type {
   LogEntry,
   LogQuery,
   ProviderPreset,
+  StatsResponse,
   Token,
   User,
   Workspace,
@@ -150,4 +151,15 @@ export function fetchLogs(query?: LogQuery) {
   }
   const qs = params.toString()
   return api<{ total: number; data: LogEntry[] }>(`/api/log${qs ? "?" + qs : ""}`)
+}
+
+export function fetchStats(params?: { scope?: string; user_id?: number; range?: number }) {
+  const qs = new URLSearchParams()
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v != null) qs.set(k, String(v))
+    })
+  }
+  const s = qs.toString()
+  return api<StatsResponse>(`/api/stats${s ? "?" + s : ""}`)
 }

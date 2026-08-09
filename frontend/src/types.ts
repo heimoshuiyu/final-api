@@ -222,3 +222,61 @@ export interface RequestCard {
   usage?: TokenUsage | null
   cost?: number | null
 }
+
+export interface StatsSummary {
+  request_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  cache_creation_tokens: number
+  total_cost: number
+  avg_duration_ms: number
+}
+
+export interface TimeSeriesPoint {
+  bucket: string
+  request_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  cache_creation_tokens: number
+  cost: number
+}
+
+export interface ModelBreakdown {
+  model: string
+  request_count: number
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cached_tokens: number
+  cache_creation_tokens: number
+  cost: number
+}
+
+export interface ChannelBreakdown {
+  channel_id: number | null
+  channel_name: string | null
+  request_count: number
+  total_tokens: number
+  cost: number
+}
+
+export interface UserBreakdown {
+  user_id: number | null
+  username: string | null
+  request_count: number
+  total_tokens: number
+  cost: number
+}
+
+export interface StatsResponse {
+  summary: StatsSummary
+  days: TimeSeriesPoint[]
+  heatmap: TimeSeriesPoint[]
+  models: ModelBreakdown[]
+  channels: ChannelBreakdown[]
+  users: UserBreakdown[]
+}

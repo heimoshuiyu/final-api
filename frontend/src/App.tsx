@@ -4,6 +4,7 @@ import type { User } from "./types"
 import { Layout } from "@/components/Layout"
 import { Login } from "@/components/Login"
 import { Dashboard } from "@/components/Dashboard"
+import { Stats } from "@/components/Stats"
 import { Tokens } from "@/components/Tokens"
 import { Channels } from "@/components/Channels"
 import { Members } from "@/components/Members"
@@ -90,6 +91,8 @@ export default function App() {
           switch (true) {
             case page === "/":
               return <Dashboard navigate={navigate} />
+            case page.startsWith("/stats"):
+              return <Stats scope="user" />
             case page.startsWith("/tokens"):
               return <Tokens />
             case page.startsWith("/channels"):
@@ -102,6 +105,8 @@ export default function App() {
               return <Inspect scope="user" />
             case page.startsWith("/monitor"):
               return <Inspect scope="workspace" />
+            case page.startsWith("/ws-stats"):
+              return <Stats scope="workspace" />
             default:
               return <Dashboard navigate={navigate} />
           }

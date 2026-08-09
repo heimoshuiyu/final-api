@@ -72,6 +72,8 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Logs
         .route("/api/log", get(handler::log::list))
+        // Stats
+        .route("/api/stats", get(handler::stats::stats))
         // Inspect
         .route("/api/inspect/stream", get(handler::inspect::stream))
         .layer(from_fn_with_state(state.clone(), jwt_auth));
