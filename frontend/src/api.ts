@@ -72,6 +72,13 @@ export function fetchSelf() {
   return api<User>("/api/user/self")
 }
 
+export function changePassword(oldPassword: string, newPassword: string) {
+  return api("/api/user/password", {
+    method: "PUT",
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  })
+}
+
 export function fetchWorkspaces() {
   return api<Workspace[]>("/api/user/workspaces")
 }

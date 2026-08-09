@@ -103,6 +103,37 @@ pub async fn register(
         })))
 }
 
+#[derive(Deserialize)]
+pub struct ChangePasswordRequest {
+    pub old_password: String,
+    pub new_password: String,
+}
+
+pub async fn change_password(
+    State(state): State<AppState>,
+    axum::Extension(auth): axum::Extension<JwtAuth>,
+    Json(req): Json<ChangePasswordRequest>,
+) -> Result<Json<Value>, AppError> {
+    let user = db::user::find_by_id(&state.pool, auth.user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("user not found".into()))?;
+
+    if !verify_password(&req.old_password, &user.password_hash)? {
+        return Err(AppError::BadRequest("current password incorrect".into()));
+    }
+    if req.new_password.len() < 6 {
+        return Err(AppError::BadRequest("new password too short".into()));
+    }
+    if req.new_password == req.old_password {
+        return Err(AppError::BadRequest("new password must differ".into()));
+    }
+
+    let hash = hash_password(&req.new_password)?;
+    db::user::update_password(&state.pool, user.id, &hash).await?;
+
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
 pub async fn self_info(
     State(state): State<AppState>,
     axum::Extension(auth): axum::Extension<JwtAuth>,

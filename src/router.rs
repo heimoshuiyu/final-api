@@ -35,6 +35,7 @@ pub fn build_router(state: AppState) -> Router {
     // ---- User-level routes (JWT only, no workspace required) ----
     let user_api = Router::<AppState>::new()
         .route("/api/user/self", get(handler::user::self_info))
+        .route("/api/user/password", put(handler::user::change_password))
         .route("/api/user/workspaces", get(handler::user::list_workspaces))
         .route("/api/workspace", post(handler::workspace::create))
         .route("/api/settings/admin", get(handler::settings::admin_settings))

@@ -4,6 +4,14 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -33,10 +41,12 @@ import {
   Moon,
   LogOut,
   Plus,
+  ChevronsUpDown,
   Settings as SettingsIcon,
 } from "lucide-react"
 import type { Workspace } from "../types"
 import { fetchWorkspaces, createWorkspace } from "../api"
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog"
 
 const NAV_ITEMS = [
   { path: "/", label: "概览", icon: LayoutDashboard },
@@ -59,12 +69,14 @@ export function Layout({
   navigate,
   wsId,
   userRole,
+  username,
   children,
 }: {
   active: string
   navigate: (r: string) => void
   wsId: string
   userRole: number
+  username: string
   children: ReactNode
 }) {
   const { theme, toggle } = useTheme()
@@ -73,6 +85,7 @@ export function Layout({
   const [newName, setNewName] = useState("")
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState("")
+  const [pwdOpen, setPwdOpen] = useState(false)
 
   useEffect(() => {
     fetchWorkspaces().then(setWorkspaces).catch(() => {})
@@ -233,7 +246,7 @@ export function Layout({
           )}
         </nav>
 
-        {/* Status + controls */}
+        {/* Status + user */}
         <div className="px-3 pb-3">
           <Separator className="mb-3" />
 
@@ -253,20 +266,47 @@ export function Layout({
             </Button>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              localStorage.removeItem("token")
-              localStorage.removeItem("workspace_id")
-              window.location.hash = ""
-              window.location.reload()
-            }}
-            className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
-          >
-            <LogOut className="size-3.5" />
-            退出登录
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-accent">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-xs font-semibold text-primary-foreground">
+                  {username.charAt(0).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-left text-xs font-medium">
+                  {username}
+                </span>
+                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top" className="w-56">
+              <DropdownMenuLabel className="flex items-center gap-2">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-chart-2 text-[10px] font-semibold text-primary-foreground">
+                  {username.charAt(0).toUpperCase()}
+                </span>
+                <span className="truncate">{username}</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setPwdOpen(true)}>
+                <KeyRound />
+                修改密码
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => {
+                  localStorage.removeItem("token")
+                  localStorage.removeItem("workspace_id")
+                  window.location.hash = ""
+                  window.location.reload()
+                }}
+              >
+                <LogOut />
+                退出登录
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <ChangePasswordDialog open={pwdOpen} onOpenChange={setPwdOpen} />
         </div>
       </aside>
 

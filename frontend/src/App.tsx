@@ -150,7 +150,7 @@ export default function App() {
   }
 
   return (
-    <Layout active={page} navigate={navigate} wsId={wsId} userRole={user.role}>
+    <Layout active={page} navigate={navigate} wsId={wsId} userRole={user.role} username={user.username}>
       <div key={wsId}>
         {(() => {
           switch (true) {

@@ -58,6 +58,19 @@ pub async fn set_role(
     Ok(())
 }
 
+pub async fn update_password(
+    pool: &sqlx::PgPool,
+    user_id: i64,
+    password_hash: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1")
+        .bind(user_id)
+        .bind(password_hash)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn find_by_ids(
     pool: &sqlx::PgPool,
     ids: Vec<i64>,
