@@ -91,6 +91,7 @@ pub async fn handler(
     }
 
     // Select channel: sticky first (with concurrency check), then load-balanced
+    // with format-aware retry (skip channels that don't support the requested format)
     let incoming_fmt = endpoint_format(&path);
     let fmt_key = incoming_fmt.route();
     let sticky_key = format!("{model}/{fmt_key}/{sticky_id}");
@@ -98,6 +99,7 @@ pub async fn handler(
 
     let selection = if let Some(ch) = sticky_sid
         .and_then(|sid| channels.iter().find(|c| c.id == sid && c.status == 1))
+        .filter(|c| channel_supports_format(c, &model, &incoming_fmt))
     {
         if let Some(p) = state
             .channel_load
@@ -120,12 +122,28 @@ pub async fn handler(
 
     let selection = match selection {
         Some(s) => s,
-        None => service::routing::select_channel(
-            &channels,
-            &[],
-            &state.channel_load,
-        )
-        .ok_or_else(|| AppError::BadGateway("no channel available".into()))?,
+        None => {
+            let mut excluded = Vec::new();
+            loop {
+                let sel = service::routing::select_channel(
+                    &channels,
+                    &excluded,
+                    &state.channel_load,
+                );
+                let Some(sel) = sel else {
+                    return Err(AppError::NotFound(format!(
+                        "no channel available for model: {model} (format: {incoming_fmt})"
+                    )));
+                };
+                if channel_supports_format(sel.channel, &model, &incoming_fmt) {
+                    break sel;
+                }
+                excluded.push(sel.channel.id);
+                if let Some(permit) = sel.permit {
+                    drop(permit);
+                }
+            }
+        }
     };
 
     let channel = selection.channel;
@@ -424,4 +442,25 @@ fn endpoint_format(path: &str) -> EndpointFormat {
     } else {
         EndpointFormat::Unknown
     }
+}
+
+fn channel_supports_format(
+    channel: &db::channel::ChannelRow,
+    model: &str,
+    incoming_fmt: &EndpointFormat,
+) -> bool {
+    if matches!(incoming_fmt, EndpointFormat::Unknown) {
+        return true;
+    }
+    let fmt_key = incoming_fmt.route();
+    let has_override = channel
+        .model_overrides
+        .get(model)
+        .and_then(|mo| mo.get(fmt_key))
+        .is_some();
+    if has_override {
+        return true;
+    }
+    let upstream_fmt = endpoint_format(&channel.endpoint_url);
+    *incoming_fmt == upstream_fmt
 }
