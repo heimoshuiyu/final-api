@@ -12,10 +12,32 @@ use tokio::sync::broadcast;
 use crate::service::concurrency::ConcurrencyPermit;
 use crate::service::usage::{UsageData, UsageExtractor, UsageFormat};
 
+const SENSITIVE_HEADERS: &[&str] = &[
+    "authorization",
+    "x-api-key",
+    "api-key",
+    "cookie",
+    "set-cookie",
+    "proxy-authorization",
+];
+
+fn is_sensitive(key: &str) -> bool {
+    SENSITIVE_HEADERS.contains(&key.to_lowercase().as_str())
+}
+
 fn headers_to_json(headers: &HeaderMap) -> serde_json::Value {    let mut map = serde_json::Map::new();
     for (key, value) in headers.iter() {
         let k = key.as_str().to_string();
-        let v = value.to_str().unwrap_or("<binary>").to_string();
+        let v = if is_sensitive(&k) {
+            let raw = value.to_str().unwrap_or("<binary>");
+            if raw.len() <= 8 {
+                "***".to_string()
+            } else {
+                format!("{}***", &raw[..raw.len() / 2])
+            }
+        } else {
+            value.to_str().unwrap_or("<binary>").to_string()
+        };
         match map.get_mut(&k) {
             Some(serde_json::Value::String(existing)) => {
                 existing.push_str(", ");
