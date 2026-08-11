@@ -210,7 +210,7 @@ function WaterfallRow({ row, index }: { row: WaterfallRowData; index: number }) 
   const Icon = row.icon
   return (
     <li
-      className="grid animate-slide-up gap-2 rounded-lg border bg-card/65 p-2.5 opacity-0 shadow-sm [animation-fill-mode:forwards] lg:grid-cols-[minmax(10rem,0.9fr)_minmax(16rem,2fr)_7rem] lg:items-center lg:gap-4"
+      className="grid animate-slide-up gap-2 rounded-lg border bg-card/65 p-2.5 opacity-0 shadow-sm [animation-fill-mode:forwards] sm:grid-cols-[minmax(8rem,0.9fr)_minmax(12rem,2fr)_6rem] sm:items-center sm:gap-4"
       style={{ animationDelay: `${index * 55}ms` }}
     >
       <div className="flex min-w-0 items-center gap-2.5">

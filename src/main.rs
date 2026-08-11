@@ -22,7 +22,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = config::Config::from_env();
 
-    let pool = sqlx::PgPool::connect(&config.database_url).await?;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .after_connect(|conn, _| Box::pin(async move {
+            sqlx::query("SET TIME ZONE 'Asia/Shanghai'")
+                .execute(conn)
+                .await?;
+            Ok(())
+        }))
+        .connect(&config.database_url)
+        .await?;
 
     sqlx::migrate!("./migrations").run(&pool).await?;
 
@@ -69,16 +77,19 @@ async fn init_default_admin(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
         .fetch_one(pool)
         .await?;
 
-        // Create default workspace
+        // Create default workspace (use ON CONFLICT in case migration already created it)
         let ws: (i64,) = sqlx::query_as(
-            "INSERT INTO workspaces (name, slug, created_by) VALUES ('Default', 'default', $1) RETURNING id",
+            "INSERT INTO workspaces (name, slug, created_by) VALUES ('Default', 'default', $1)
+             ON CONFLICT (slug) DO UPDATE SET created_by = COALESCE(workspaces.created_by, $1)
+             RETURNING id",
         )
         .bind(user.0)
         .fetch_one(pool)
         .await?;
 
         sqlx::query(
-            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 1)",
+            "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 1)
+             ON CONFLICT DO NOTHING",
         )
         .bind(ws.0)
         .bind(user.0)

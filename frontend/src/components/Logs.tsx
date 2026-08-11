@@ -225,7 +225,7 @@ export function Logs() {
 
       {/* Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="glass-panel glow-border max-h-[85vh] max-w-2xl overflow-y-auto border-0">
+        <DialogContent className="glass-panel glow-border max-h-[85vh] max-w-4xl overflow-y-auto border-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <span>请求详情</span>
