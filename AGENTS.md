@@ -115,6 +115,30 @@ cd /workspace/frontend && npx npm-check-updates -u && npm install
 - **前端主题**：OKLCH 色彩系统（参考 opencode-token-dashboard 风格）。`index.css` 中定义 CSS 变量，`<html>` 上的 `.dark`/`.light` class 切换主题（非 `data-theme` 属性）。默认深色。工具类：`.glass-panel`（毛玻璃面板）、`.glow-border`（发光边框）、`.accent-gradient-text`（品牌渐变文字）、`.bg-grid`（网格背景）、`.bg-radial-glow`（深色模式径向光晕）。字体：Geist Variable（UI）+ JetBrains Mono Variable（数据）。
 - **Podman**：rootless Podman + podman-compose。docker-compose.yml 中有 `userns_mode: "keep-id"`，端口 3000/5174 直接映射到宿主机。不用 VSCode Dev Container。
 - **接口格式校验**：中继会拒绝入口端点格式和存储的 `endpoint_url` 后缀不匹配的请求（`/chat/completions` = OpenAI，`/messages` = Anthropic）。
+- **前端嵌入**：`frontend/dist/` 通过 `rust-embed` 在编译期嵌入到后端二进制。因此 **`cargo build` 前必须先 `npm run build`**。生产环境只需单二进制（:3000 直接 serve 前端）。
+
+## 生产构建
+
+生产 Dockerfile（`Dockerfile`）基于 `debian:13-slim`，只复制预编译的 release 二进制进去，不在镜像内构建。
+
+```bash
+# 1. 容器内构建前端（rust-embed 编译期嵌入，必须先做）
+podman exec final-api_app_1 bash -c 'cd /workspace/frontend && npm run build'
+
+# 2. 容器内编译 release 二进制
+podman exec final-api_app_1 bash -c 'cd /workspace && cargo build --release'
+
+# 3. 复制二进制到宿主机 target/release/（编译产物在 tmpfs：/tmp/final-api-target/）
+podman exec final-api_app_1 bash -c 'mkdir -p /workspace/target/release && cp /tmp/final-api-target/release/final-api /workspace/target/release/'
+
+# 4. 构建生产镜像
+podman build -t final-api:latest .
+
+# 5. 运行（需提供 DATABASE_URL）
+podman run -d -p 3000:3000 \
+  -e DATABASE_URL=postgres://user:pass@host:5432/db \
+  final-api:latest
+```
 
 ## 默认凭据
 

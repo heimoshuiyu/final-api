@@ -22,6 +22,9 @@ pub struct LogRow {
     pub cached_tokens: Option<i32>,
     pub cache_creation_tokens: Option<i32>,
     pub cost: Option<f64>,
+    pub upstream_headers_ms: Option<i32>,
+    pub upstream_first_data_ms: Option<i32>,
+    pub upstream_complete_ms: Option<i32>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -38,13 +41,14 @@ pub struct CreateLogParams<'a> {
     pub session_id: &'a str,
     pub sticky_id: &'a str,
     pub error_message: Option<&'a str>,
+    pub upstream_headers_ms: Option<i32>,
 }
 
 pub async fn create(pool: &sqlx::PgPool, p: &CreateLogParams<'_>) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
         r#"INSERT INTO request_logs (workspace_id, token_id, user_id, channel_id, model, is_stream,
-           status_code, duration_ms, session_id, sticky_id, error_message)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+           status_code, duration_ms, session_id, sticky_id, error_message, upstream_headers_ms)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
            RETURNING id"#,
     )
     .bind(p.workspace_id)
@@ -58,6 +62,7 @@ pub async fn create(pool: &sqlx::PgPool, p: &CreateLogParams<'_>) -> Result<i64,
     .bind(p.session_id)
     .bind(p.sticky_id)
     .bind(p.error_message)
+    .bind(p.upstream_headers_ms)
     .fetch_one(pool)
     .await?;
     Ok(row.0)
@@ -85,6 +90,27 @@ pub async fn update_usage(
     .bind(cached_tokens.map(|v| v as i32))
     .bind(cache_creation_tokens.map(|v| v as i32))
     .bind(cost.unwrap_or(0.0))
+    .bind(id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn update_timings(
+    pool: &sqlx::PgPool,
+    id: i64,
+    upstream_first_data_ms: Option<i32>,
+    upstream_complete_ms: Option<i32>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"UPDATE request_logs
+           SET upstream_first_data_ms = $1,
+               upstream_complete_ms = $2,
+               duration_ms = COALESCE($2, duration_ms)
+           WHERE id = $3"#,
+    )
+    .bind(upstream_first_data_ms)
+    .bind(upstream_complete_ms)
     .bind(id)
     .execute(pool)
     .await?;

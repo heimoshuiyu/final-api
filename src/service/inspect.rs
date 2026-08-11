@@ -137,6 +137,7 @@ pub struct InspectStream<S> {
     log_id: Option<i64>,
     model_prices: serde_json::Value,
     model: String,
+    first_data_ms: Option<i32>,
     _permit: Option<ConcurrencyPermit>,
 }
 
@@ -168,6 +169,7 @@ impl<S> InspectStream<S> {
             log_id: Some(log_id),
             model_prices,
             model,
+            first_data_ms: None,
             _permit: permit,
         }
     }
@@ -182,6 +184,9 @@ where
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match Pin::new(&mut self.inner).poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
+                if !bytes.is_empty() && self.first_data_ms.is_none() {
+                    self.first_data_ms = Some(self.start.elapsed().as_millis() as i32);
+                }
                 self.usage_extractor.feed(&bytes);
                 let _ = self.tx.send(InspectEvent::Chunk {
                     req_id: self.req_id.clone(),
@@ -196,12 +201,14 @@ where
                 let cost = calculate_cost(&usage, &self.model_prices, &self.model);
 
                 if let (Some(pool), Some(log_id)) = (&self.pool, self.log_id) {
-                    if !usage.is_empty() {
-                        let pool = pool.clone();
-                        let u = usage.clone();
-                        let prices = self.model_prices.clone();
-                        let model = self.model.clone();
-                        tokio::spawn(async move {
+                    let pool = pool.clone();
+                    let u = usage.clone();
+                    let prices = self.model_prices.clone();
+                    let model = self.model.clone();
+                    let first_data_ms = self.first_data_ms;
+                    let complete_ms = self.start.elapsed().as_millis() as i32;
+                    tokio::spawn(async move {
+                        if !u.is_empty() {
                             let c = calculate_cost(&u, &prices, &model);
                             let _ = crate::db::log::update_usage(
                                 &pool,
@@ -214,8 +221,15 @@ where
                                 Some(c),
                             )
                             .await;
-                        });
-                    }
+                        }
+                        let _ = crate::db::log::update_timings(
+                            &pool,
+                            log_id,
+                            first_data_ms,
+                            Some(complete_ms),
+                        )
+                        .await;
+                    });
                 }
 
                 let _ = self.tx.send(InspectEvent::End {

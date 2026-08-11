@@ -4,9 +4,6 @@ import type { LogEntry } from "../types"
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import {
   ChevronsLeft,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +32,7 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { TimingCard } from "./TimingCard"
 
 const PAGE_SIZE = 20
 
@@ -38,6 +43,7 @@ export function Logs() {
   const [modelFilter, setModelFilter] = useState("")
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState<LogEntry | null>(null)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -116,7 +122,11 @@ export function Logs() {
               </TableHeader>
               <TableBody>
                 {logs.map((log) => (
-                  <TableRow key={log.id} className="border-border/30 font-mono text-xs">
+                  <TableRow
+                    key={log.id}
+                    className="cursor-pointer border-border/30 font-mono text-xs transition-colors hover:bg-muted/40"
+                    onClick={() => setSelected(log)}
+                  >
                     <TableCell>
                       <span
                         className={cn(
@@ -212,6 +222,89 @@ export function Logs() {
           </div>
         </div>
       )}
+
+      {/* Detail Dialog */}
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent className="glass-panel glow-border max-h-[85vh] max-w-2xl overflow-y-auto border-0">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <span>请求详情</span>
+              {selected && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-mono",
+                    selected.status_code === 200 && "text-chart-2",
+                    selected.status_code >= 500 && "text-destructive",
+                    selected.status_code >= 300 && selected.status_code < 500 && "text-chart-3",
+                  )}
+                >
+                  {selected.status_code}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {selected && (
+            <div className="flex flex-col gap-4">
+              {/* Metadata grid */}
+              <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                <MetaItem label="模型" value={selected.model || "—"} mono />
+                <MetaItem label="渠道" value={selected.channel_id ? `#${selected.channel_id}` : "—"} mono />
+                <MetaItem label="流式" value={selected.is_stream ? "是" : "否"} />
+                <MetaItem
+                  label="时间"
+                  value={new Date(selected.created_at).toLocaleString("zh-CN")}
+                />
+                <MetaItem
+                  label="Token"
+                  value={
+                    selected.total_tokens != null
+                      ? `${selected.total_tokens} (${selected.prompt_tokens ?? 0}+${selected.completion_tokens ?? 0})`
+                      : "—"
+                  }
+                  mono
+                />
+                <MetaItem
+                  label="缓存"
+                  value={
+                    selected.cached_tokens != null || selected.cache_creation_tokens != null
+                      ? `${selected.cached_tokens ?? 0} / ${selected.cache_creation_tokens ?? 0}`
+                      : "—"
+                  }
+                  mono
+                />
+                <MetaItem
+                  label="费用"
+                  value={selected.cost != null && selected.cost > 0 ? `$${selected.cost.toFixed(4)}` : "—"}
+                  mono
+                />
+                <MetaItem label="会话" value={selected.sticky_id || "—"} mono />
+              </div>
+
+              {selected.error_message && (
+                <Alert variant="destructive">
+                  <AlertCircle className="size-4" />
+                  <AlertDescription>{selected.error_message}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* Timing */}
+              <TimingCard data={selected} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className={cn("truncate text-foreground", mono && "font-mono")} title={value}>
+        {value}
+      </span>
     </div>
   )
 }

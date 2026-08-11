@@ -119,6 +119,9 @@ export interface LogEntry {
   cached_tokens: number | null
   cache_creation_tokens: number | null
   cost: number | null
+  upstream_headers_ms: number | null
+  upstream_first_data_ms: number | null
+  upstream_complete_ms: number | null
   created_at: string
 }
 

@@ -256,6 +256,7 @@ pub async fn handler(
         Ok(resp) => {
             let status = resp.status();
             let status_code = status.as_u16();
+            let upstream_headers_ms = start.elapsed().as_millis() as i32;
 
             if status_code == 200 {
                 let _ = db::sticky::set(
@@ -268,7 +269,7 @@ pub async fn handler(
             }
 
             let duration_ms = start.elapsed().as_millis() as i32;
-            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &session_id, &sticky_id, status_code).await?;
+            let log_id = log_request(&state.pool, &auth, channel.id, &model, is_stream, status_code as i32, duration_ms, &session_id, &sticky_id, status_code, Some(upstream_headers_ms)).await?;
 
             let mut response_builder = Response::builder().status(status);
             for key in resp.headers().keys() {
@@ -304,7 +305,7 @@ pub async fn handler(
         }
         Err(e) => {
             let duration_ms = start.elapsed().as_millis() as i32;
-            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &session_id, &sticky_id, 0).await;
+            let _ = log_request(&state.pool, &auth, channel.id, &model, is_stream, 502, duration_ms, &session_id, &sticky_id, 0, Some(duration_ms)).await;
             let _ = state.inspect_tx.send(InspectEvent::End {
                 req_id,
                 status: 502,
@@ -329,6 +330,7 @@ async fn log_request(
     session_id: &str,
     sticky_id: &str,
     error_status: u16,
+    upstream_headers_ms: Option<i32>,
 ) -> Result<i64, sqlx::Error> {
     let error_message = if error_status != 0 && error_status != 200 {
         Some(format!("HTTP {error_status}"))
@@ -350,6 +352,7 @@ async fn log_request(
             session_id,
             sticky_id,
             error_message: error_message.as_deref(),
+            upstream_headers_ms,
         },
     )
     .await
