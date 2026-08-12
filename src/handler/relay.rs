@@ -20,6 +20,7 @@ const KEEP_RESP_HEADERS: &[&str] = &[
     "content-type",
     "cache-control",
     "x-request-id",
+    "x-accel-buffering",
     "anthropic-ratelimit-requests",
     "anthropic-ratelimit-tokens",
     "openai-organization",
