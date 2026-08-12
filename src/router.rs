@@ -40,6 +40,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/workspace", post(handler::workspace::create))
         .route("/api/settings/admin", get(handler::settings::admin_settings))
         .route("/api/settings", put(handler::settings::update_settings))
+        .route("/api/verification", get(handler::verification::list).post(handler::verification::create))
+        .route("/api/verification/{id}", delete(handler::verification::delete))
         .route("/api/invite/{token}/accept", post(handler::workspace::accept_invite))
         .layer(from_fn_with_state(state.clone(), jwt_auth_user_only));
 

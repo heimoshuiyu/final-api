@@ -279,6 +279,7 @@ export function Logs() {
                   mono
                 />
                 <MetaItem label="会话" value={selected.sticky_id || "—"} mono />
+                <MetaItem label="User-Agent" value={selected.user_agent || "—"} mono className="break-all" />
               </div>
 
               {selected.error_message && (
@@ -298,11 +299,11 @@ export function Logs() {
   )
 }
 
-function MetaItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MetaItem({ label, value, mono, className }: { label: string; value: string; mono?: boolean; className?: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
-      <span className={cn("truncate text-foreground", mono && "font-mono")} title={value}>
+      <span className={cn("text-foreground", mono && "font-mono", className)} title={value}>
         {value}
       </span>
     </div>

@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react"
-import { fetchAdminSettings, updateSettings } from "../api"
-import type { AdminSettings } from "../types"
+import { useEffect, useRef, useState } from "react"
+import { fetchAdminSettings, updateSettings, fetchVerifications, createVerification, deleteVerification } from "../api"
+import type { AdminSettings, DomainVerification } from "../types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, Check, Mail, Code, Building2 } from "lucide-react"
+import { AlertCircle, Loader2, Check, Mail, Code, Building2, FileCheck2, Trash2, Plus, Upload } from "lucide-react"
 
 interface ProviderField {
   key: string
@@ -51,11 +51,18 @@ export function Settings() {
   const [error, setError] = useState("")
   const [saved, setSaved] = useState(false)
 
+  const [verifications, setVerifications] = useState<DomainVerification[]>([])
+  const [vfFilename, setVfFilename] = useState("")
+  const [vfContent, setVfContent] = useState("")
+  const [vfBusy, setVfBusy] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     fetchAdminSettings()
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "加载失败"))
       .finally(() => setLoading(false))
+    fetchVerifications().then(setVerifications).catch(() => {})
   }, [])
 
   const handleSave = async () => {
@@ -211,6 +218,127 @@ export function Settings() {
               </div>
             )
           })}
+        </CardContent>
+      </Card>
+
+      <Card className="glass-panel">
+        <CardHeader>
+          <CardTitle className="text-base">域名验证文件</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-xs text-muted-foreground">
+            用于企业微信、百度等第三方域名所有权验证。上传验证文件后，访问
+            <code className="mx-1 font-mono">{window.location.origin}/{"<filename>"}</code>
+            即返回文件内容。
+          </p>
+
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid gap-1.5">
+              <Label className="text-xs">文件名</Label>
+              <Input
+                value={vfFilename}
+                onChange={(e) => setVfFilename(e.target.value)}
+                className="h-9 w-72 font-mono text-xs"
+                placeholder="WW_verify_xxxx.txt"
+              />
+            </div>
+            <div className="grid flex-1 gap-1.5">
+              <Label className="text-xs">内容</Label>
+              <Input
+                value={vfContent}
+                onChange={(e) => setVfContent(e.target.value)}
+                className="h-9 font-mono text-xs"
+                placeholder="验证码内容"
+              />
+            </div>
+            <Button
+              size="sm"
+              className="h-9"
+              disabled={vfBusy || !vfFilename.trim()}
+              onClick={async () => {
+                setVfBusy(true)
+                try {
+                  const row = await createVerification(vfFilename.trim(), vfContent)
+                  setVerifications((prev) => [row, ...prev.filter((v) => v.filename !== row.filename)])
+                  setVfFilename("")
+                  setVfContent("")
+                } catch {
+                  /* ignore */
+                } finally {
+                  setVfBusy(false)
+                }
+              }}
+            >
+              {vfBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+              添加
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const text = await file.text()
+                setVfFilename(file.name)
+                setVfContent(text)
+                e.target.value = ""
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="size-3.5" />
+              上传
+            </Button>
+          </div>
+
+          {verifications.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {verifications.map((vf) => (
+                <div
+                  key={vf.filename}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-2.5"
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <FileCheck2 className="size-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-xs font-medium">{vf.filename}</p>
+                      <p className="truncate font-mono text-[10px] text-muted-foreground">{vf.content}</p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <a
+                      href={`${window.location.origin}/${vf.filename}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-primary hover:underline"
+                    >
+                      访问 ↗
+                    </a>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 text-muted-foreground hover:text-destructive"
+                      onClick={async () => {
+                        try {
+                          await deleteVerification(vf.filename)
+                          setVerifications((prev) => prev.filter((v) => v.filename !== vf.filename))
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

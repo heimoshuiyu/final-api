@@ -2,6 +2,7 @@ import type {
   Channel,
   CreateChannelRequest,
   CreateTokenRequest,
+  DomainVerification,
   LogEntry,
   LogQuery,
   ProviderPreset,
@@ -194,4 +195,19 @@ export function updateSettings(data: {
   oauth_providers: { provider: string; enabled: boolean; config: Record<string, string> }[]
 }) {
   return api("/api/settings", { method: "PUT", body: JSON.stringify(data) })
+}
+
+export function fetchVerifications() {
+  return api<DomainVerification[]>("/api/verification")
+}
+
+export function createVerification(filename: string, content: string) {
+  return api<DomainVerification>("/api/verification", {
+    method: "POST",
+    body: JSON.stringify({ filename, content }),
+  })
+}
+
+export function deleteVerification(filename: string) {
+  return api(`/api/verification/${encodeURIComponent(filename)}`, { method: "DELETE" })
 }

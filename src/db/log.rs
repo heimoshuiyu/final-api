@@ -25,6 +25,7 @@ pub struct LogRow {
     pub upstream_headers_ms: Option<i32>,
     pub upstream_first_data_ms: Option<i32>,
     pub upstream_complete_ms: Option<i32>,
+    pub user_agent: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -42,13 +43,14 @@ pub struct CreateLogParams<'a> {
     pub sticky_id: &'a str,
     pub error_message: Option<&'a str>,
     pub upstream_headers_ms: Option<i32>,
+    pub user_agent: &'a str,
 }
 
 pub async fn create(pool: &sqlx::PgPool, p: &CreateLogParams<'_>) -> Result<i64, sqlx::Error> {
     let row: (i64,) = sqlx::query_as(
         r#"INSERT INTO request_logs (workspace_id, token_id, user_id, channel_id, model, is_stream,
-           status_code, duration_ms, session_id, sticky_id, error_message, upstream_headers_ms)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           status_code, duration_ms, session_id, sticky_id, error_message, upstream_headers_ms, user_agent)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            RETURNING id"#,
     )
     .bind(p.workspace_id)
@@ -63,6 +65,7 @@ pub async fn create(pool: &sqlx::PgPool, p: &CreateLogParams<'_>) -> Result<i64,
     .bind(p.sticky_id)
     .bind(p.error_message)
     .bind(p.upstream_headers_ms)
+    .bind(p.user_agent)
     .fetch_one(pool)
     .await?;
     Ok(row.0)

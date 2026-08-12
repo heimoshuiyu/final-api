@@ -9,4 +9,5 @@ pub mod settings;
 pub mod stats;
 pub mod token;
 pub mod user;
+pub mod verification;
 pub mod workspace;

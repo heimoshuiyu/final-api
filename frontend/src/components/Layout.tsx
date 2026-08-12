@@ -43,6 +43,7 @@ import {
   ChevronsUpDown,
   Settings2,
   Settings as SettingsIcon,
+  Menu,
 } from "lucide-react"
 import type { Workspace } from "../types"
 import { fetchWorkspaces, createWorkspace } from "../api"
@@ -86,6 +87,7 @@ export function Layout({
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState("")
   const [pwdOpen, setPwdOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => {
     fetchWorkspaces().then(setWorkspaces).catch(() => {})
@@ -127,14 +129,32 @@ export function Layout({
 
   const isAdmin = userRole >= 10
 
+  const handleNavigate = (path: string) => {
+    navigate(path)
+    setSidebarOpen(false)
+  }
+
   return (
     <div className="relative min-h-screen bg-background text-foreground">
       {/* Background effects */}
       <div className="pointer-events-none fixed inset-0 bg-radial-glow" />
       <div className="pointer-events-none fixed inset-0 bg-grid opacity-30" />
 
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-10 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="glass-panel fixed left-0 top-0 bottom-0 z-20 flex w-60 flex-col border-r">
+      <aside
+        className={cn(
+          "glass-panel fixed left-0 top-0 bottom-0 z-20 flex w-60 flex-col border-r transition-transform duration-300 md:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
         {/* Logo */}
         <div className="px-5 py-6">
           <div className="text-lg font-bold tracking-tight accent-gradient-text" style={{ letterSpacing: "-0.03em" }}>
@@ -208,14 +228,14 @@ export function Layout({
         </Dialog>
 
         {/* Nav */}
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3">
           {NAV_ITEMS.map((item) => {
             const isActive = active === item.path
             const Icon = item.icon
             return (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => handleNavigate(item.path)}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                   isActive
@@ -240,7 +260,7 @@ export function Layout({
                 return (
                   <button
                     key={item.path}
-                    onClick={() => navigate(item.path)}
+                    onClick={() => handleNavigate(item.path)}
                     className={cn(
                       "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all",
                       isActive
@@ -321,9 +341,22 @@ export function Layout({
         </div>
       </aside>
 
+      {/* Mobile header */}
+      <header className="fixed left-0 right-0 top-0 z-10 flex h-12 items-center gap-3 border-b border-border/40 bg-background/80 px-4 backdrop-blur-sm md:hidden">
+        <Button variant="ghost" size="icon-sm" onClick={() => setSidebarOpen(true)}>
+          <Menu className="size-4" />
+        </Button>
+        <span className="text-sm font-bold tracking-tight accent-gradient-text">final-api</span>
+        <div className="ml-auto">
+          <Button variant="ghost" size="icon-xs" onClick={toggle}>
+            {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+          </Button>
+        </div>
+      </header>
+
       {/* Main content */}
-      <main className="relative ml-60">
-        <div className="mx-auto max-w-6xl px-6 py-8 md:px-10 md:py-10">{children}</div>
+      <main className="relative pt-12 md:ml-60 md:pt-0">
+        <div className="mx-auto max-w-6xl px-4 py-6 md:px-10 md:py-10">{children}</div>
       </main>
     </div>
   )

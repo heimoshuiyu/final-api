@@ -47,6 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         inspect_tx,
         channel_load: Default::default(),
         wecom_token_cache: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        verification_files: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
     };
 
     let app = router::build_router(state.clone());

@@ -1,0 +1,1 @@
+ALTER TABLE request_logs ADD COLUMN IF NOT EXISTS user_agent TEXT NOT NULL DEFAULT '';

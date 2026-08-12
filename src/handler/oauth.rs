@@ -35,8 +35,11 @@ fn build_auth_url(provider: &str, cfg: &serde_json::Value, redirect_uri: &str, s
             let corpid = cfg.get("corpid")?.as_str()?;
             let agentid = cfg.get("agentid")?.as_str()?;
             Some(format!(
-                "https://open.weixin.qq.com/connect/oauth2/authorize?appid={}&redirect_uri={}&response_type=code&scope=snsapi_base&state={}&agentid={}#wechat_redirect",
-                corpid, redirect_uri, state, agentid
+                "https://login.work.weixin.qq.com/wwlogin/sso/login?login_type=CorpApp&appid={}&agentid={}&redirect_uri={}&state={}",
+                corpid,
+                agentid,
+                urlencoding::encode(redirect_uri),
+                state
             ))
         }
         _ => None,

@@ -22,6 +22,11 @@ export interface AdminSettings {
   oauth_providers: OAuthProviderAdmin[]
 }
 
+export interface DomainVerification {
+  filename: string
+  content: string
+}
+
 export interface OAuthProviderAdmin {
   provider: string
   name: string
@@ -122,6 +127,7 @@ export interface LogEntry {
   upstream_headers_ms: number | null
   upstream_first_data_ms: number | null
   upstream_complete_ms: number | null
+  user_agent: string
   created_at: string
 }
 
