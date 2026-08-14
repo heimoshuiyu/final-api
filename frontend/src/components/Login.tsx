@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sun, Moon, Loader2, AlertCircle, Users } from "lucide-react"
 
-export function Login({ onLogin, inviteHint }: { onLogin: (token: string) => void; inviteHint?: string }) {
+export function Login({ onLogin, inviteHint, inviteToken }: { onLogin: (token: string) => void; inviteHint?: string; inviteToken?: string | null }) {
   const [mode, setMode] = useState<"login" | "register">("login")
   const [username, setUsername] = useState("root")
   const [password, setPassword] = useState("123456")
@@ -81,7 +81,7 @@ export function Login({ onLogin, inviteHint }: { onLogin: (token: string) => voi
           <>
             <div className="mb-4 flex flex-col gap-2">
               {oauthProviders.map((p) => (
-                <a key={p.provider} href={`/api/oauth/${p.provider}/auth`}>
+                <a key={p.provider} href={`/api/oauth/${p.provider}/auth${inviteToken ? `?invite=${encodeURIComponent(inviteToken)}` : ""}`}>
                   <Button type="button" variant="outline" className="w-full gap-2">
                     {p.provider === "github" && <GithubIcon className="size-4" />}
                     {p.provider === "google" && <GoogleIcon className="size-4" />}

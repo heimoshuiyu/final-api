@@ -18,9 +18,10 @@ import { WorkspaceSettings } from "@/components/WorkspaceSettings"
 function parseHash(): { wsId: string; page: string; oauthToken: string | null; inviteToken: string | null } {
   const hash = window.location.hash.slice(1)
 
-  const oauthMatch = hash.match(/^\/oauth-callback\?token=(.+)$/)
+  const oauthMatch = hash.match(/^\/oauth-callback\?(.+)$/)
   if (oauthMatch) {
-    return { wsId: "", page: "", oauthToken: oauthMatch[1], inviteToken: null }
+    const params = new URLSearchParams(oauthMatch[1])
+    return { wsId: "", page: "", oauthToken: params.get("token"), inviteToken: params.get("invite") }
   }
 
   const inviteMatch = hash.match(/^\/invite\/([A-Za-z0-9]+)$/)
@@ -47,10 +48,10 @@ export default function App() {
   useEffect(() => {
     if (oauthToken) {
       localStorage.setItem("token", oauthToken)
-      window.location.hash = ""
+      window.location.hash = inviteToken ? `/invite/${inviteToken}` : ""
       setAuthed(true)
     }
-  }, [oauthToken])
+  }, [oauthToken, inviteToken])
 
   useEffect(() => {
     if (!authed) return
@@ -101,8 +102,9 @@ export default function App() {
   }
 
   // Invite flow: show login with hint when not authed
-  if (inviteToken && !authed) {
-    return <Login onLogin={() => setAuthed(true)} inviteHint={inviteWsName ?? undefined} />
+  // Invite flow: show login with hint when not authed (skip during oauth-callback handoff)
+  if (inviteToken && !authed && !oauthToken) {
+    return <Login onLogin={() => setAuthed(true)} inviteHint={inviteWsName ?? undefined} inviteToken={inviteToken} />
   }
 
   if (loading) {

@@ -15,6 +15,27 @@ pub struct AuthQuery {
     pub state: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct InviteQuery {
+    pub invite: Option<String>,
+}
+
+fn valid_invite_token(t: &str) -> bool {
+    !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_alphanumeric())
+}
+
+fn cookie_value(headers: &axum::http::HeaderMap, name: &str) -> String {
+    headers
+        .get("cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| {
+            s.split(';')
+                .map(|c| c.trim())
+                .find_map(|c| c.strip_prefix(&format!("{name}=")).map(|v| v.to_string()))
+        })
+        .unwrap_or_default()
+}
+
 fn build_auth_url(provider: &str, cfg: &serde_json::Value, redirect_uri: &str, state: &str) -> Option<String> {
     match provider {
         "github" => {
@@ -49,6 +70,7 @@ fn build_auth_url(provider: &str, cfg: &serde_json::Value, redirect_uri: &str, s
 pub async fn oauth_auth(
     State(state): State<AppState>,
     Path(provider): Path<String>,
+    Query(invite_q): Query<InviteQuery>,
 ) -> Result<axum::response::Response, AppError> {
     let settings = db::settings::get(&state.pool).await?;
     let provider_cfg = settings.oauth_config.get(&provider)
@@ -78,14 +100,22 @@ pub async fn oauth_auth(
         .ok_or_else(|| AppError::BadRequest("unsupported or misconfigured provider".into()))?;
 
     let mut response = Redirect::temporary(&auth_url).into_response();
-    let cookie_val = format!(
-        "oauth_state={state_token}; HttpOnly; Max-Age=600; Path=/; SameSite=Lax"
-    );
-    response.headers_mut().insert(
+    response.headers_mut().append(
         axum::http::header::SET_COOKIE,
-        HeaderValue::from_str(&cookie_val)
-            .map_err(|e| AppError::Internal(e.to_string()))?,
+        HeaderValue::from_str(&format!(
+            "oauth_state={state_token}; HttpOnly; Max-Age=600; Path=/; SameSite=Lax"
+        ))
+        .map_err(|e| AppError::Internal(e.to_string()))?,
     );
+    if let Some(invite) = invite_q.invite.as_deref().filter(|t| valid_invite_token(t)) {
+        response.headers_mut().append(
+            axum::http::header::SET_COOKIE,
+            HeaderValue::from_str(&format!(
+                "oauth_invite={invite}; HttpOnly; Max-Age=600; Path=/; SameSite=Lax"
+            ))
+            .map_err(|e| AppError::Internal(e.to_string()))?,
+        );
+    }
     Ok(response)
 }
 
@@ -254,19 +284,18 @@ pub async fn oauth_callback(
     let code = query.code
         .ok_or_else(|| AppError::BadRequest("missing code".into()))?;
 
-    let cookie_state = headers
-        .get("cookie")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| {
-            s.split(';')
-                .map(|c| c.trim())
-                .find_map(|c| c.strip_prefix("oauth_state=").map(|v| v.to_string()))
-        })
-        .unwrap_or_default();
+    let cookie_state = cookie_value(&headers, "oauth_state");
 
     if query.state.as_deref() != Some(&cookie_state) || cookie_state.is_empty() {
         return Err(AppError::BadRequest("invalid state".into()));
     }
+
+    let invite_token = cookie_value(&headers, "oauth_invite");
+    let invite_suffix = if valid_invite_token(&invite_token) {
+        format!("&invite={invite_token}")
+    } else {
+        String::new()
+    };
 
     let settings = db::settings::get(&state.pool).await?;
     let provider_cfg = settings.oauth_config.get(&provider)
@@ -312,16 +341,24 @@ pub async fn oauth_callback(
     let token = create_jwt(&state.config.jwt_secret, user.id, &user.username, user.role)?;
 
     let redirect_url = format!(
-        "{}/#/oauth-callback?token={}",
+        "{}/#/oauth-callback?token={}{}",
         state.config.oauth_redirect_base.trim_end_matches('/'),
-        token
+        token,
+        invite_suffix
     );
 
     let mut response = Redirect::temporary(&redirect_url).into_response();
-    response.headers_mut().insert(
+    response.headers_mut().append(
         axum::http::header::SET_COOKIE,
         HeaderValue::from_str("oauth_state=; HttpOnly; Max-Age=0; Path=/")
             .map_err(|e| AppError::Internal(e.to_string()))?,
     );
+    if !invite_suffix.is_empty() {
+        response.headers_mut().append(
+            axum::http::header::SET_COOKIE,
+            HeaderValue::from_str("oauth_invite=; HttpOnly; Max-Age=0; Path=/")
+                .map_err(|e| AppError::Internal(e.to_string()))?,
+        );
+    }
     Ok(response)
 }
