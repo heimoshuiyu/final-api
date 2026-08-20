@@ -172,6 +172,35 @@ pub async fn promote_member(
     Ok(Json(serde_json::json!({ "success": true })))
 }
 
+// ---- Include in workspace stats ----
+
+#[derive(Deserialize)]
+pub struct IncludeStatsBody {
+    pub include_in_stats: bool,
+}
+
+pub async fn set_include_stats(
+    State(state): State<AppState>,
+    axum::Extension(auth): axum::Extension<JwtAuth>,
+    Path(user_id): Path<i64>,
+    Json(body): Json<IncludeStatsBody>,
+) -> Result<Json<Value>, AppError> {
+    assert_admin(&auth)?;
+
+    let ok = db::workspace::set_include_stats(
+        &state.pool,
+        auth.workspace_id,
+        user_id,
+        body.include_in_stats,
+    )
+    .await?;
+    if !ok {
+        return Err(AppError::NotFound("member not found".into()));
+    }
+
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
 // ---- Token-based invites ----
 
 pub async fn create_invite(

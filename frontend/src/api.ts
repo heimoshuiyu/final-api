@@ -108,6 +108,13 @@ export function promoteMember(userId: number) {
   return api(`/api/workspace/members/${userId}/promote`, { method: "POST" })
 }
 
+export function setIncludeStats(userId: number, includeInStats: boolean) {
+  return api(`/api/workspace/members/${userId}/include-stats`, {
+    method: "PUT",
+    body: JSON.stringify({ include_in_stats: includeInStats }),
+  })
+}
+
 export function createInvite() {
   return api<{ id: number; token: string; created_at: string }>("/api/workspace/invites", { method: "POST" })
 }

@@ -18,6 +18,7 @@ pub struct MemberRow {
     pub workspace_id: i64,
     pub user_id: i64,
     pub role: i16,
+    pub include_in_stats: bool,
     pub joined_at: DateTime<Utc>,
     pub username: String,
 }
@@ -132,6 +133,24 @@ pub async fn list_members(
     .bind(workspace_id)
     .fetch_all(pool)
     .await
+}
+
+pub async fn set_include_stats(
+    pool: &sqlx::PgPool,
+    workspace_id: i64,
+    user_id: i64,
+    include_in_stats: bool,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE workspace_members SET include_in_stats = $3
+         WHERE workspace_id = $1 AND user_id = $2",
+    )
+    .bind(workspace_id)
+    .bind(user_id)
+    .bind(include_in_stats)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn member_count(

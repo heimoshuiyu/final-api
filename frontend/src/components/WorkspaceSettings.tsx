@@ -8,6 +8,7 @@ import {
   deleteInvite,
   promoteMember,
   removeMember,
+  setIncludeStats,
 } from "../api"
 import type { WorkspaceMember, WorkspaceInvite } from "../types"
 import {
@@ -18,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,6 +48,7 @@ export function WorkspaceSettings() {
   const [invites, setInvites] = useState<WorkspaceInvite[]>([])
   const [error, setError] = useState("")
   const [copied, setCopied] = useState<number | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const [wsName, setWsName] = useState("")
   const [savingName, setSavingName] = useState(false)
@@ -59,6 +62,7 @@ export function WorkspaceSettings() {
         fetchInvites(),
       ])
       setWsName(info.name)
+      setIsAdmin(((info as { role?: number }).role ?? 0) >= 10)
       setMembers(m)
       setInvites(i)
     } catch (e) {
@@ -116,6 +120,30 @@ export function WorkspaceSettings() {
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : "移除失败")
+    }
+  }
+
+  const handleSetIncludeStats = async (
+    userId: number,
+    includeInStats: boolean,
+  ) => {
+    // optimistic update
+    setMembers((ms) =>
+      ms.map((m) =>
+        m.user_id === userId ? { ...m, include_in_stats: includeInStats } : m,
+      ),
+    )
+    try {
+      await setIncludeStats(userId, includeInStats)
+    } catch (e) {
+      setMembers((ms) =>
+        ms.map((m) =>
+          m.user_id === userId
+            ? { ...m, include_in_stats: !includeInStats }
+            : m,
+        ),
+      )
+      setError(e instanceof Error ? e.message : "操作失败")
     }
   }
 
@@ -253,6 +281,9 @@ export function WorkspaceSettings() {
                 <TableHead className="text-xs uppercase tracking-wider">用户</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">身份</TableHead>
                 <TableHead className="text-xs uppercase tracking-wider">加入时间</TableHead>
+                {isAdmin && (
+                  <TableHead className="text-xs uppercase tracking-wider">计入统计</TableHead>
+                )}
                 <TableHead className="text-xs uppercase tracking-wider text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -277,31 +308,43 @@ export function WorkspaceSettings() {
                   <TableCell className="text-muted-foreground">
                     {new Date(m.joined_at).toLocaleDateString("zh-CN")}
                   </TableCell>
+                  {isAdmin && (
+                    <TableCell>
+                      <Switch
+                        checked={m.include_in_stats}
+                        onCheckedChange={(v) => handleSetIncludeStats(m.user_id, v)}
+                        title="开启后该用户的用量计入工作区整体统计"
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
-                    {m.role < 10 ? (
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handlePromote(m.user_id)}
-                          className="text-muted-foreground hover:text-primary"
-                          title="提升为管理员"
-                        >
-                          <ArrowUpCircle className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleRemove(m.user_id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          title="移除"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    )}
+                    <div className="flex justify-end gap-1">
+                      {m.role < 10 && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handlePromote(m.user_id)}
+                            className="text-muted-foreground hover:text-primary"
+                            title="提升为管理员"
+                          >
+                            <ArrowUpCircle className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleRemove(m.user_id)}
+                            className="text-muted-foreground hover:text-destructive"
+                            title="移除"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </>
+                      )}
+                      {m.role >= 10 && !isAdmin && (
+                        <span className="text-[10px] text-muted-foreground">—</span>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

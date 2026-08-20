@@ -59,6 +59,10 @@ pub fn build_router(state: AppState) -> Router {
             post(handler::workspace::promote_member),
         )
         .route(
+            "/api/workspace/members/{id}/include-stats",
+            put(handler::workspace::set_include_stats),
+        )
+        .route(
             "/api/workspace/invites",
             get(handler::workspace::list_invites).post(handler::workspace::create_invite),
         )

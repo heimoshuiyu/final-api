@@ -46,6 +46,7 @@ export interface WorkspaceMember {
   user_id: number
   username: string
   role: number
+  include_in_stats: boolean
   joined_at: string
 }
 

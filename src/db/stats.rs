@@ -137,7 +137,11 @@ pub async fn summary(
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
-           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($2::bigint IS NOT NULL OR user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = request_logs.workspace_id
+               AND wm.user_id = request_logs.user_id
+               AND wm.include_in_stats))
            AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
@@ -168,7 +172,11 @@ pub async fn timeseries_daily(
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
-           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($2::bigint IS NOT NULL OR user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = request_logs.workspace_id
+               AND wm.user_id = request_logs.user_id
+               AND wm.include_in_stats))
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            GROUP BY 1 ORDER BY 1"#,
     )
@@ -200,7 +208,11 @@ pub async fn timeseries_2h(
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
-           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($2::bigint IS NOT NULL OR user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = request_logs.workspace_id
+               AND wm.user_id = request_logs.user_id
+               AND wm.include_in_stats))
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            GROUP BY 1 ORDER BY 1"#,
     )
@@ -226,7 +238,11 @@ pub async fn fetch_intervals_daily(
            WHERE workspace_id = $1
            AND status_code = 200
            AND duration_ms > 0
-           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($2::bigint IS NOT NULL OR user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = request_logs.workspace_id
+               AND wm.user_id = request_logs.user_id
+               AND wm.include_in_stats))
            AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
@@ -251,7 +267,11 @@ pub async fn fetch_intervals_2h(
            WHERE workspace_id = $1
            AND status_code = 200
            AND duration_ms > 0
-           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($2::bigint IS NOT NULL OR user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = request_logs.workspace_id
+               AND wm.user_id = request_logs.user_id
+               AND wm.include_in_stats))
            AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
@@ -281,7 +301,11 @@ pub async fn by_model(
            FROM request_logs
            WHERE workspace_id = $1
            AND status_code = 200
-           AND ($2::bigint IS NULL OR user_id = $2)
+           AND ($2::bigint IS NOT NULL OR user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = request_logs.workspace_id
+               AND wm.user_id = request_logs.user_id
+               AND wm.include_in_stats))
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            AND model != ''
            GROUP BY model ORDER BY total_tokens DESC"#,
@@ -309,6 +333,11 @@ pub async fn by_channel(
            LEFT JOIN channels c ON r.channel_id = c.id
            WHERE r.workspace_id = $1
            AND r.status_code = 200
+           AND (r.user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = r.workspace_id
+               AND wm.user_id = r.user_id
+               AND wm.include_in_stats))
            AND ($2::timestamptz IS NULL OR r.created_at >= $2)
            GROUP BY c.id, c.name ORDER BY total_tokens DESC"#,
     )
@@ -334,6 +363,11 @@ pub async fn by_user(
            LEFT JOIN users u ON r.user_id = u.id
            WHERE r.workspace_id = $1
            AND r.status_code = 200
+           AND (r.user_id IS NULL OR EXISTS (
+               SELECT 1 FROM workspace_members wm
+               WHERE wm.workspace_id = r.workspace_id
+               AND wm.user_id = r.user_id
+               AND wm.include_in_stats))
            AND ($2::timestamptz IS NULL OR r.created_at >= $2)
            GROUP BY r.user_id, u.username ORDER BY total_tokens DESC"#,
     )
