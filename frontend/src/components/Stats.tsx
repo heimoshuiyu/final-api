@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -187,7 +187,37 @@ export function Stats({
   }, [scope])
 
   const summary = data?.summary
-  const days = data?.days ?? []
+  const rawDays = data?.days ?? []
+
+  // Fill in days that have no data at all so the time axis stays continuous
+  const days = useMemo(() => {
+    if (rawDays.length === 0) return rawDays
+    const map = new Map(rawDays.map((d) => [d.bucket, d]))
+    const sorted = [...map.keys()].sort()
+    const filled: typeof rawDays = []
+    const cur = new Date(`${sorted[0]}T00:00:00`)
+    const last = new Date(`${sorted[sorted.length - 1]}T00:00:00`)
+    while (cur <= last) {
+      const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
+      filled.push(
+        map.get(ds) ?? {
+          bucket: ds,
+          request_count: 0,
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          cached_tokens: 0,
+          cache_creation_tokens: 0,
+          cost: 0,
+          runtime: 0,
+          runtime_dedup: 0,
+        },
+      )
+      cur.setDate(cur.getDate() + 1)
+    }
+    return filled
+  }, [rawDays])
+
   const heatmap = data?.heatmap ?? []
   const models = data?.models ?? []
   const channels = data?.channels ?? []

@@ -211,6 +211,21 @@ export function Heatmap({
       blocks: byDate.get(date)!,
     }))
 
+    // Fill in days that have no data at all so gaps stay visible
+    if (columns.length > 0) {
+      const filled: typeof columns = []
+      const cur = new Date(`${columns[0].date}T00:00:00`)
+      const last = new Date(`${columns[columns.length - 1].date}T00:00:00`)
+      const colMap = new Map(columns.map((c) => [c.date, c]))
+      while (cur <= last) {
+        const ds = toISODate(cur)
+        filled.push(colMap.get(ds) ?? { date: ds, blocks: Array.from({ length: BLOCK_COUNT }, newCell) })
+        cur.setDate(cur.getDate() + 1)
+      }
+      columns.length = 0
+      columns.push(...filled)
+    }
+
     let max = 0
     let sum = 0
     for (const col of columns) {

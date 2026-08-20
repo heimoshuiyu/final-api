@@ -142,6 +142,7 @@ pub async fn summary(
                WHERE wm.workspace_id = request_logs.workspace_id
                AND wm.user_id = request_logs.user_id
                AND wm.include_in_stats))
+           AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
@@ -177,6 +178,7 @@ pub async fn timeseries_daily(
                WHERE wm.workspace_id = request_logs.workspace_id
                AND wm.user_id = request_logs.user_id
                AND wm.include_in_stats))
+           AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            GROUP BY 1 ORDER BY 1"#,
     )
@@ -213,6 +215,7 @@ pub async fn timeseries_2h(
                WHERE wm.workspace_id = request_logs.workspace_id
                AND wm.user_id = request_logs.user_id
                AND wm.include_in_stats))
+           AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            GROUP BY 1 ORDER BY 1"#,
     )
@@ -243,6 +246,7 @@ pub async fn fetch_intervals_daily(
                WHERE wm.workspace_id = request_logs.workspace_id
                AND wm.user_id = request_logs.user_id
                AND wm.include_in_stats))
+           AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
@@ -272,6 +276,7 @@ pub async fn fetch_intervals_2h(
                WHERE wm.workspace_id = request_logs.workspace_id
                AND wm.user_id = request_logs.user_id
                AND wm.include_in_stats))
+           AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)"#,
     )
     .bind(workspace_id)
@@ -306,6 +311,7 @@ pub async fn by_model(
                WHERE wm.workspace_id = request_logs.workspace_id
                AND wm.user_id = request_logs.user_id
                AND wm.include_in_stats))
+           AND ($2::bigint IS NULL OR user_id = $2)
            AND ($3::timestamptz IS NULL OR created_at >= $3)
            AND model != ''
            GROUP BY model ORDER BY total_tokens DESC"#,

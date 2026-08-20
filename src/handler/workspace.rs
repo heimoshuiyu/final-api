@@ -123,6 +123,7 @@ pub async fn list_members(
                     "user_id": m.user_id,
                     "username": m.username,
                     "role": global_role,
+                    "include_in_stats": m.include_in_stats,
                     "joined_at": m.joined_at,
                 })
             })
