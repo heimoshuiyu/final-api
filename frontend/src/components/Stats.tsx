@@ -85,7 +85,14 @@ function fmtMs(n: number): string {
 }
 
 function fmtCompactRaw(summary: StatsSummary, metric: MetricKey): string {
-  return metricFmt(metric, getMetricValue(summary, metric))
+  // summary 的字段名与 TimeSeriesPoint 不同（total_runtime / total_cost），做一次映射
+  const adapted = {
+    ...summary,
+    runtime: summary.total_runtime,
+    runtime_dedup: summary.total_runtime_dedup,
+    cost: summary.total_cost,
+  }
+  return metricFmt(metric, getMetricValue(adapted, metric))
 }
 
 function subText(summary: StatsSummary, metric: MetricKey): string {
