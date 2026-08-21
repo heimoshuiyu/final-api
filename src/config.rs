@@ -14,7 +14,14 @@ impl Config {
         Self {
             bind_addr: env::var("BIND_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".into()),
             database_url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
-            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "change-me".into()),
+            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| {
+                eprintln!(
+                    "WARNING: JWT_SECRET is not set, using insecure default \"change-me\". \
+                     Anyone with the source code can forge admin JWTs. \
+                     Set JWT_SECRET to a strong random value (e.g. `openssl rand -hex 32`) in production!"
+                );
+                "change-me".into()
+            }),
             sticky_ttl_seconds: env::var("STICKY_TTL_SECONDS")
                 .ok()
                 .and_then(|s| s.parse().ok())
