@@ -49,7 +49,11 @@ pub struct ChannelBreakdown {
     pub channel_id: Option<i64>,
     pub channel_name: Option<String>,
     pub request_count: i64,
+    pub prompt_tokens: i64,
+    pub completion_tokens: i64,
     pub total_tokens: i64,
+    pub cached_tokens: i64,
+    pub cache_creation_tokens: i64,
     pub cost: f64,
 }
 
@@ -58,7 +62,11 @@ pub struct UserBreakdown {
     pub user_id: Option<i64>,
     pub username: Option<String>,
     pub request_count: i64,
+    pub prompt_tokens: i64,
+    pub completion_tokens: i64,
     pub total_tokens: i64,
+    pub cached_tokens: i64,
+    pub cache_creation_tokens: i64,
     pub cost: f64,
 }
 
@@ -333,7 +341,11 @@ pub async fn by_channel(
             c.id as channel_id,
             c.name as channel_name,
             COUNT(*)::bigint as request_count,
+            COALESCE(SUM(COALESCE(r.prompt_tokens, 0)), 0)::bigint as prompt_tokens,
+            COALESCE(SUM(COALESCE(r.completion_tokens, 0)), 0)::bigint as completion_tokens,
             COALESCE(SUM(COALESCE(r.total_tokens, 0)), 0)::bigint as total_tokens,
+            COALESCE(SUM(COALESCE(r.cached_tokens, 0)), 0)::bigint as cached_tokens,
+            COALESCE(SUM(COALESCE(r.cache_creation_tokens, 0)), 0)::bigint as cache_creation_tokens,
             COALESCE(SUM(COALESCE(r.cost, 0)), 0)::float8 as cost
            FROM request_logs r
            LEFT JOIN channels c ON r.channel_id = c.id
@@ -363,7 +375,11 @@ pub async fn by_user(
             r.user_id,
             u.username,
             COUNT(*)::bigint as request_count,
+            COALESCE(SUM(COALESCE(r.prompt_tokens, 0)), 0)::bigint as prompt_tokens,
+            COALESCE(SUM(COALESCE(r.completion_tokens, 0)), 0)::bigint as completion_tokens,
             COALESCE(SUM(COALESCE(r.total_tokens, 0)), 0)::bigint as total_tokens,
+            COALESCE(SUM(COALESCE(r.cached_tokens, 0)), 0)::bigint as cached_tokens,
+            COALESCE(SUM(COALESCE(r.cache_creation_tokens, 0)), 0)::bigint as cache_creation_tokens,
             COALESCE(SUM(COALESCE(r.cost, 0)), 0)::float8 as cost
            FROM request_logs r
            LEFT JOIN users u ON r.user_id = u.id

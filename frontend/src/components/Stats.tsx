@@ -18,6 +18,7 @@ import {
 import { fetchStats, fetchMembers } from "../api"
 import type {
   StatsResponse,
+  StatsSummary,
   ModelBreakdown,
   WorkspaceMember,
 } from "../types"
@@ -81,6 +82,20 @@ function fmtCost(n: number): string {
 function fmtMs(n: number): string {
   if (n < 1000) return Math.round(n) + "ms"
   return (n / 1000).toFixed(1) + "s"
+}
+
+function fmtCompactRaw(summary: StatsSummary, metric: MetricKey): string {
+  return metricFmt(metric, getMetricValue(summary, metric))
+}
+
+function subText(summary: StatsSummary, metric: MetricKey): string {
+  if (metric === "total_tokens") {
+    return `${fmtCompact(summary.prompt_tokens)} + ${fmtCompact(summary.completion_tokens)}`
+  }
+  if (metric === "cache_hit_rate") {
+    return `${fmtCompact(summary.cached_tokens)} / ${fmtCompact(summary.prompt_tokens)}`
+  }
+  return ""
 }
 
 interface ChartTooltipProps {
@@ -313,9 +328,9 @@ export function Stats({
           delay={0}
         />
         <StatCard
-          label="总 Token"
-          value={summary ? fmtCompact(summary.total_tokens) : "—"}
-          sub={summary ? `${fmtCompact(summary.prompt_tokens)} + ${fmtCompact(summary.completion_tokens)}` : ""}
+          label={metricLabel(metric)}
+          value={summary ? fmtCompactRaw(summary, metric) : "—"}
+          sub={summary ? subText(summary, metric) : ""}
           icon={Zap}
           color="text-chart-2"
           delay={60}
@@ -554,7 +569,7 @@ export function Stats({
           <Card className="glass-panel glow-border border-0 animate-fade-in stagger-6">
             <CardHeader>
               <CardTitle className="text-base">渠道用量</CardTitle>
-              <CardDescription className="text-xs">按渠道统计</CardDescription>
+              <CardDescription className="text-xs">按渠道统计 · {metricLabel(metric)}</CardDescription>
             </CardHeader>
             <CardContent>
               {channels.length === 0 ? (
@@ -576,7 +591,7 @@ export function Stats({
                       </div>
                       <div className="flex items-center gap-4 font-mono text-xs text-muted-foreground">
                         <span>{fmtCompact(c.request_count)} 次</span>
-                        <span className="text-foreground">{fmtCompact(c.total_tokens)}</span>
+                        <span className="text-foreground">{metricFmt(metric, getMetricValue(c, metric))}</span>
                         <span className="text-chart-3">{fmtCost(c.cost)}</span>
                       </div>
                     </div>
@@ -590,7 +605,7 @@ export function Stats({
           <Card className="glass-panel glow-border border-0 animate-fade-in stagger-7">
             <CardHeader>
               <CardTitle className="text-base">用户用量</CardTitle>
-              <CardDescription className="text-xs">按用户统计</CardDescription>
+              <CardDescription className="text-xs">按用户统计 · {metricLabel(metric)}</CardDescription>
             </CardHeader>
             <CardContent>
               {users.length === 0 ? (
@@ -610,7 +625,7 @@ export function Stats({
                       </Badge>
                       <div className="flex items-center gap-4 font-mono text-xs text-muted-foreground">
                         <span>{fmtCompact(u.request_count)} 次</span>
-                        <span className="text-foreground">{fmtCompact(u.total_tokens)}</span>
+                        <span className="text-foreground">{metricFmt(metric, getMetricValue(u, metric))}</span>
                         <span className="text-chart-3">{fmtCost(u.cost)}</span>
                       </div>
                     </div>

@@ -295,7 +295,11 @@ export interface ChannelBreakdown {
   channel_id: number | null
   channel_name: string | null
   request_count: number
+  prompt_tokens: number
+  completion_tokens: number
   total_tokens: number
+  cached_tokens: number
+  cache_creation_tokens: number
   cost: number
 }
 
@@ -303,7 +307,11 @@ export interface UserBreakdown {
   user_id: number | null
   username: string | null
   request_count: number
+  prompt_tokens: number
+  completion_tokens: number
   total_tokens: number
+  cached_tokens: number
+  cache_creation_tokens: number
   cost: number
 }
 
